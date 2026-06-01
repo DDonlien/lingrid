@@ -1,0 +1,6 @@
+msgid ""
+msgstr ""
+
+msgctxt "menu.start"
+msgid "Start Game"
+msgstr ""

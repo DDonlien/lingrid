@@ -1,0 +1,19 @@
+msgid ""
+msgstr ""
+"Language: zh-CN\n"
+
+#. Main menu action
+#: src/menu.ts:10
+#, fuzzy
+#| msgid "Play"
+msgctxt "menu.start"
+msgid "Start Game"
+msgstr "开始游戏"
+
+#: src/menu.ts:11
+msgctxt "menu.continue"
+msgid "Continue"
+msgstr ""
+
+#~ msgid "Old option"
+#~ msgstr "旧选项"

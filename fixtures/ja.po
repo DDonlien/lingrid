@@ -1,0 +1,14 @@
+msgid ""
+msgstr ""
+"Language: ja\n"
+
+#. Main menu action
+#: src/menu.ts:10
+msgctxt "menu.start"
+msgid "Start Game"
+msgstr "ゲーム開始"
+
+#: src/menu.ts:11
+msgctxt "menu.continue"
+msgid "Continue"
+msgstr ""
