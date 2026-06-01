@@ -137,7 +137,8 @@
 - 开发命令：`npm run dev`；Electron 桌面开发使用 `npm run dev:electron`。
 - 测试命令：`npm test`。
 - 构建命令：`npm run build`。
-- 发布命令：仓库初始化前待定；Electron 封装阶段再定义。
+- 浏览器版本发布：推送 `main` 后由 GitHub Actions 自动部署 GitHub Pages。
+- Electron 安装包发布：Phase 2（P2）封装阶段再定义。
 
 ### 文档入口
 

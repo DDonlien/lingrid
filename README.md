@@ -98,13 +98,23 @@ npm install
 npm run dev
 ```
 
+## 在线预览
+
+GitHub Pages 浏览器版本：
+
+```text
+https://ddonlien.github.io/lingrid/
+```
+
+推送到 `main` 后，GitHub Actions 会自动执行测试、构建并部署 `dist/`。Electron 封装属于 Phase 2（P2），不影响浏览器版本发布。
+
 浏览器开发预览在支持 File System Access API 的浏览器中可以直接覆盖通过 `Open` 打开的本地源文件。不支持该 API 的浏览器会回退为普通文件选择，此时主保存会提示重新打开文件或使用 Electron 桌面版本，不会下载一个容易误解为已保存的新副本。
 
 Electron 桌面版本重新打开项目时，会按项目 JSON 记录的路径自动读取 PO/POT 或 CSV 源文件。个别源文件缺失或不可读时会跳过并提示，不阻止其余文件打开。
 
 浏览器开发预览受网页权限模型限制：重新打开项目时，先选择项目 JSON，再点击 `Authorize Project Folder` 授权一次项目目录。应用会在目录中递归查找 JSON 引用的源文件并自动恢复；个别缺失文件会跳过并提示。不支持目录选择 API 的浏览器才回退为手动重新选择源文件。项目 JSON 记录项目状态，但不嵌入翻译正文或浏览器文件权限。
 
-启动 Electron 桌面开发版本：
+Electron 封装任务已移到 Phase 2（P2）。当前仍可启动已有桌面开发入口：
 
 ```bash
 npm run build

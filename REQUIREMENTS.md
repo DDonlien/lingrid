@@ -289,12 +289,23 @@
 
 - [ ] [BACK-A-001] 支持 Excel 导入导出 #P2
 - [ ] [BACK-A-002] 支持术语库 #P2
+- [ ] [BACK-A-009] 完成 Electron 桌面封装与安装包发布 #P2
+  - [ ] 定义桌面安装包构建命令
+  - [ ] 验证桌面文件对话框、受控读写和项目恢复
+  - [ ] 定义桌面版本发布流程
 - [ ] [BACK-A-003] 支持翻译记忆 #P3
 - [ ] [BACK-A-004] 支持更复杂 QA 检查 #P3
 - [ ] [BACK-A-005] 支持 plural forms 高级编辑 #P3
 - [ ] [BACK-A-006] 支持 Git diff / 外部修改对比 #P3
 - [ ] [BACK-A-007] 支持 JSON / i18next / XLIFF 等更多格式 #P3
 - [ ] [BACK-A-008] 支持批量 AI 建议 #P2
+
+### RELEASE-A：浏览器版本发布
+
+- [x] [RELEASE-A-001] 使用 GitHub Actions 部署 GitHub Pages #P0
+  - [x] 推送 `main` 时执行测试与构建
+  - [x] 使用 Pages artifact 发布 `dist/`
+  - [x] Vite 在 GitHub Actions 中使用 `/lingrid/` 子路径
 
 ## 持续约束
 
