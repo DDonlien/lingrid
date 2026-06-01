@@ -73,7 +73,7 @@ Phase 1（v0.1）可先以浅色模式为主，但样式应兼容 shadcn/ui 的 
 
 - 主按钮：用于 Save、Apply AI Suggestion 等关键动作；高度 32–36px；圆角使用 shadcn 默认或 `rounded-md`。
 - `Save PO/CSV` 与 `Save Project` 在对应内容存在未保存变化时显示轻量橙色提示点；两类保存状态彼此独立。
-- 左下状态栏使用相同的独立保存状态：有未保存内容时列出 `PO/CSV not saved`、`Project not saved`，全部落盘后显示 `All changes saved`。
+- 左下状态栏使用相同的独立保存状态：有未保存内容时列出 `PO/CSV not saved`、`Project not saved`，全部落盘后显示 `All changes saved`。最近一次源文件保存结果也固定显示在左下角：成功时说明已经写入并校验，失败时使用错误色并展示具体原因。
 - 次按钮：用于 Open、Import、Filter、Stats 等工具动作。
 - 危险按钮：仅用于覆盖、清空、移除文件等风险操作。
 - 禁用态：降低 opacity，禁止 hover 强反馈。
@@ -120,7 +120,7 @@ Phase 1（v0.1）可先以浅色模式为主，但样式应兼容 shadcn/ui 的 
 
 - Phase 1（v0.1）不需要复杂侧边栏。
 - 顶部 toolbar + 可折叠右侧 panel 足够。
-- 右上角使用紧凑的语言选择器切换应用界面语言；提供中文、日文和英文，不喧宾夺主。
+- 右上角使用紧凑的标准轻量弹出菜单切换应用界面语言；提供中文、日文和英文。弹层沿用顶部筛选菜单的边框、阴影、radio 选项和间距，不使用浏览器原生下拉样式。
 - 统计可作为右侧 tab、底部弹层或轻量 panel。
 
 ## 图标与图像

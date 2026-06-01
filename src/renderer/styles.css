@@ -12,8 +12,12 @@ button { cursor: pointer; }
 .brand-mark { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: #fff; background: #635bff; }
 .toolbar { gap: 2px; }
 .toolbar.right { margin-left: auto; }
-.ui-language { display: flex; align-items: center; gap: 4px; height: 30px; margin-left: 4px; padding: 0 5px 0 7px; border: 1px solid #e4e4e7; border-radius: 6px; color: #71717a; background: #fff; }
-.ui-language select { height: 26px; padding: 0 17px 0 3px; border: 0; outline: 0; background: transparent; }
+.ui-language-menu { position: relative; margin-left: 4px; }
+.ui-language-menu summary { list-style: none; cursor: pointer; }
+.ui-language-menu summary::-webkit-details-marker { display: none; }
+.ui-language-toggle { display: flex; align-items: center; gap: 5px; height: 30px; padding: 0 8px; border: 1px solid #e4e4e7; border-radius: 6px; color: #52525b; background: #fff; font-size: 12px; white-space: nowrap; }
+.ui-language-toggle:hover { color: #18181b; background: #f4f4f5; }
+.ui-language-popover { right: 0; left: auto; min-width: 128px; }
 .separator { width: 1px; height: 20px; margin: 0 6px; background: #e4e4e7; }
 .button, .icon-button { gap: 6px; border: 0; border-radius: 6px; color: #52525b; background: transparent; }
 .button { height: 30px; padding: 0 9px; font-size: 12px; font-weight: 550; white-space: nowrap; }
@@ -98,7 +102,7 @@ code { display: block; overflow: hidden; color: #71717a; font-size: 11px; text-o
 .statusbar { justify-content: space-between; padding: 0 10px; border-top: 1px solid #e4e4e7; border-bottom: 0; color: #71717a; font-size: 11px; }
 .statusbar span { gap: 6px; }
 .statusbar i { width: 7px; height: 7px; border-radius: 50%; }
-.saved { background: #22c55e; }.unsaved { background: #f59e0b; }
+.saved { background: #22c55e; }.unsaved { background: #f59e0b; }.failed { background: #ef4444; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgb(24 24 27 / .26); }
 .modal { width: min(520px, 90vw); border: 1px solid #e4e4e7; border-radius: 10px; background: #fff; box-shadow: 0 20px 50px rgb(0 0 0 / .16); }
 .modal header { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px; border-bottom: 1px solid #e4e4e7; }

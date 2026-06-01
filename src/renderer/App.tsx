@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
+import { writeBrowserFile } from "../core/browser-files";
 import { adjacentCell, canImportSourceTypes, createProject, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, reorderColumn, serializeProject, sortedEntries } from "../core/project";
 import type { AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { createDemoProject } from "./demo";
@@ -38,6 +39,7 @@ type ProjectConfig = {
   view?: Partial<LingridProject["view"]> & { tag?: string };
 };
 type BrowserSourceFile = { name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle };
+type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "error"; message: string };
 const cellDraftKey = (entryKey: string, language: string) => `${entryKey}\u0001${language}`;
 const SOURCE_COLUMN = "$source";
 const TAGS_COLUMN = "$tags";
@@ -60,7 +62,7 @@ const UI_TEXT = {
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
-    allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件",
+    allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格",
     aiSuggestionSettings: "AI 建议设置", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
@@ -74,7 +76,7 @@ const UI_TEXT = {
     detailEditor: "詳細エディター", noSelection: "未選択", keyContext: "Key / context", translation: "翻訳", enterTranslation: "翻訳を入力…",
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
-    allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル",
+    allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル",
     aiSuggestionSettings: "AI 提案設定", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
@@ -88,7 +90,7 @@ const UI_TEXT = {
     detailEditor: "Detail editor", noSelection: "No selection", keyContext: "Key / context", translation: "Translation", enterTranslation: "Enter translation…",
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
-    allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files",
+    allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells",
     aiSuggestionSettings: "AI suggestion settings", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
@@ -201,6 +203,7 @@ export function App() {
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
   const [csvDraft, setCsvDraft] = useState({ documentId: "", sourceColumn: "", keyColumn: "", languages: "" });
   const [cellDrafts, setCellDrafts] = useState<Record<string, string>>({});
+  const [sourceSaveStatus, setSourceSaveStatus] = useState<SourceSaveStatus>({ kind: "idle" });
   const [draggedLanguage, setDraggedLanguage] = useState<string | null>(null);
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
   const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(createDemoProject()));
@@ -238,6 +241,13 @@ export function App() {
     sourceDirty ? `${sourceFormatLabel(project)} ${t.notSaved}` : "",
     projectDirty ? t.projectNotSaved : "",
   ].filter(Boolean);
+  const sourceSaveLog = sourceSaveStatus.kind === "success"
+    ? `${sourceFormatLabel(project)} ${t.savedAndVerified}: ${sourceSaveStatus.changedCount} ${t.changedCells}`
+    : sourceSaveStatus.kind === "error"
+      ? `${sourceFormatLabel(project)} ${t.saveFailed}: ${sourceSaveStatus.message}`
+      : "";
+  const saveStatusText = [...statusLabels, sourceSaveLog].filter(Boolean).join(" · ") || t.allSaved;
+  const saveStatusClass = sourceSaveStatus.kind === "error" ? "failed" : statusLabels.length ? "unsaved" : "saved";
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
     project.entries.forEach((entry) => entry.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1)));
@@ -249,6 +259,7 @@ export function App() {
   }
 
   function updateCell(entryKey: string, language: string, value: string) {
+    setSourceSaveStatus({ kind: "idle" });
     setCellDrafts((drafts) => {
       const next = { ...drafts };
       delete next[cellDraftKey(entryKey, language)];
@@ -266,6 +277,7 @@ export function App() {
 
   function importDocuments(files: Array<{ name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle }>) {
     if (!files.length) return;
+    setSourceSaveStatus({ kind: "idle" });
     setProject((state) => {
       let next = { ...state, documents: [...state.documents], entries: [...state.entries] };
       if (next.documents.length === 0 && next.entries[0]?.key.startsWith("demo")) next = createProject();
@@ -356,6 +368,7 @@ export function App() {
   }
 
   function draftCell(entryKey: string, language: string, value: string) {
+    setSourceSaveStatus({ kind: "idle" });
     setCellDrafts((drafts) => ({ ...drafts, [cellDraftKey(entryKey, language)]: value }));
   }
 
@@ -458,7 +471,7 @@ export function App() {
   async function authorizeProjectDirectory() {
     if (!pendingBrowserProject || !window.showDirectoryPicker) return;
     try {
-      const directoryHandle = await window.showDirectoryPicker();
+      const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
       const { files, missingPaths } = await readBrowserProjectDirectory(directoryHandle, pendingBrowserProject.config);
       restoreProject(pendingBrowserProject.config, files, undefined, pendingBrowserProject.projectFileHandle, missingPaths);
       setPendingBrowserProject(null);
@@ -494,6 +507,7 @@ export function App() {
     next.projectPath = projectPath;
     next.projectFileHandle = projectFileHandle;
     setCellDrafts({});
+    setSourceSaveStatus({ kind: "idle" });
     setProject(next);
     setSavedProjectSnapshot(serializeProject(next));
     setSelection(next.entries[0] && next.columnOrder[0] ? { key: next.entries[0].key, language: next.columnOrder[0] } : null);
@@ -550,29 +564,31 @@ export function App() {
   }
 
   async function saveSources() {
+    const entries = applyCellDrafts(project.entries);
+    let documents = [...project.documents];
     try {
-      const entries = applyCellDrafts(project.entries);
-      const documents = await Promise.all(project.documents.map(async (document) => {
-        if (!document.writable) return document;
+      if (!documents.some((document) => document.writable)) {
+        throw new Error("No writable PO or CSV source file is open.");
+      }
+      for (let index = 0; index < documents.length; index += 1) {
+        const document = documents[index];
+        if (!document.writable) continue;
         const raw = document.type === "csv" ? updateCsv(document, entries) : updatePo(document, entries);
+        if (raw === document.raw) continue;
         let modifiedAt = document.modifiedAt;
         if (window.lingrid && document.path) {
           modifiedAt = await window.lingrid.writeFile(document.path, raw, document.modifiedAt);
         } else if (document.fileHandle) {
-          if (document.modifiedAt && (await document.fileHandle.getFile()).lastModified !== document.modifiedAt) {
-            throw new Error("File changed outside Lingrid.");
-          }
-          const writable = await document.fileHandle.createWritable();
-          await writable.write(raw);
-          await writable.close();
-          const writtenFile = await document.fileHandle.getFile();
-          if (await writtenFile.text() !== raw) throw new Error(`File write verification failed: ${document.name}`);
-          modifiedAt = writtenFile.lastModified;
+          modifiedAt = await writeBrowserFile(document.fileHandle, raw, document.modifiedAt, document.name);
         } else {
-          throw new Error("Direct source saving needs a retained local file handle.");
+          throw new Error(`Direct source saving needs a retained local file handle for ${document.name}. Reopen it in a File System Access API browser or use Electron.`);
         }
-        return { ...document, raw, modifiedAt };
-      }));
+        documents[index] = { ...document, raw, modifiedAt };
+      }
+      const savedChangedCount = entries.reduce(
+        (count, entry) => count + (entry.sourceChanged ? 1 : 0) + Object.values(entry.translations).filter((cell) => cell.changed).length,
+        0,
+      );
       setProject({
         ...project,
         documents,
@@ -585,9 +601,14 @@ export function App() {
         })),
       });
       setCellDrafts({});
-      setNotice(`Saved ${changedCount} changed cell${changedCount === 1 ? "" : "s"}`);
+      setSourceSaveStatus({ kind: "success", changedCount: savedChangedCount });
+      setNotice(`${sourceFormatLabel(project)} ${t.savedAndVerified}`);
     } catch (error) {
-      setNotice(`Save stopped: ${error instanceof Error ? error.message : "could not write the source file."}`);
+      const message = error instanceof Error ? error.message : "Could not write the source file.";
+      setProject({ ...project, documents, entries });
+      setCellDrafts({});
+      setSourceSaveStatus({ kind: "error", message });
+      setNotice(`${sourceFormatLabel(project)} ${t.saveFailed}: ${message}`);
     }
   }
 
@@ -756,7 +777,28 @@ export function App() {
         <div className="toolbar right">
           <Button onClick={() => setModal("batch")}><ArrowDownUp size={15} />{t.batchReplace}</Button>
           <Button variant="soft" onClick={() => setModal("ai")}><Bot size={15} />{t.aiSettings}</Button>
-          <label className="ui-language" title={t.uiLanguage}><Languages size={14} /><select value={uiLanguage} onChange={(event) => setUiLanguage(event.target.value as UiLanguage)}>{UI_LANGUAGES.map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</select></label>
+          <details className="ui-language-menu">
+            <summary className="ui-language-toggle" title={t.uiLanguage}>
+              <Languages size={14} />
+              {UI_LANGUAGES.find((language) => language.value === uiLanguage)?.label}
+            </summary>
+            <div className="filter-popover ui-language-popover">
+              {UI_LANGUAGES.map((language) => (
+                <label key={language.value}>
+                  <input
+                    type="radio"
+                    name="ui-language"
+                    checked={uiLanguage === language.value}
+                    onChange={(event) => {
+                      setUiLanguage(language.value);
+                      event.currentTarget.closest("details")?.removeAttribute("open");
+                    }}
+                  />
+                  {language.label}
+                </label>
+              ))}
+            </div>
+          </details>
         </div>
       </header>
 
@@ -821,7 +863,7 @@ export function App() {
           </section>
         </aside>
       </div>
-      <footer className="statusbar"><span><i className={statusLabels.length ? "unsaved" : "saved"} />{statusLabels.length ? statusLabels.join(" · ") : t.allSaved}</span><span>{notice}</span><span>{project.documents.length} {t.sourceFiles} · Phase 1 / v0.1</span></footer>
+      <footer className="statusbar"><span><i className={saveStatusClass} />{saveStatusText}</span><span>{notice}</span><span>{project.documents.length} {t.sourceFiles} · Phase 1 / v0.1</span></footer>
 
       <input hidden multiple ref={fileInput} type="file" accept=".po,.pot,.csv" onChange={async (event) => { const files = await Promise.all([...event.target.files ?? []].map(async (file) => ({ name: file.name, path: "", content: await file.text() }))); event.target.value = ""; if (pendingProjectConfig.current) { const config = pendingProjectConfig.current; pendingProjectConfig.current = null; restoreProject(config, files); } else importDocuments(files); }} />
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />

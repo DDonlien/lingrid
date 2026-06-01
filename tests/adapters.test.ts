@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defaultCsvMapping, parseCsv, updateCsv } from "../src/adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../src/adapters/po";
+import { writeBrowserFile } from "../src/core/browser-files";
 import { adjacentCell, canImportSourceTypes, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../src/core/project";
 import type { LingridProject, SourceDocument, TranslationEntry } from "../src/core/types";
 
@@ -78,6 +79,48 @@ describe("CSV adapter", () => {
     expect(updateCsv(document, entries)).toContain("menu.continue,Continue,Continue,继续,続ける");
     entries[0] = { ...entries[0], source: "Begin Game", sourceChanged: true };
     expect(updateCsv(document, entries)).toContain("menu.start,Begin Game,Start Game,开始游戏,ゲーム開始");
+  });
+});
+
+describe("Browser source saving", () => {
+  function fileHandle(options: { permission?: PermissionState; verifyWrite?: boolean } = {}) {
+    let content = "before";
+    let modifiedAt = 1;
+    const queryPermission = vi.fn(async () => options.permission ?? "prompt");
+    const requestPermission = vi.fn(async () => options.permission ?? "granted");
+    const handle = {
+      queryPermission,
+      requestPermission,
+      getFile: vi.fn(async () => ({ lastModified: modifiedAt, text: async () => content })),
+      createWritable: vi.fn(async () => ({
+        write: async (next: string) => {
+          if (options.verifyWrite !== false) content = next;
+          modifiedAt += 1;
+        },
+        close: async () => undefined,
+      })),
+    } as unknown as FileSystemFileHandle;
+    return { handle, queryPermission, requestPermission, content: () => content };
+  }
+
+  it("requests readwrite permission and verifies the persisted browser file", async () => {
+    const file = fileHandle();
+    await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po")).resolves.toBe(2);
+    expect(file.queryPermission).toHaveBeenCalledWith({ mode: "readwrite" });
+    expect(file.requestPermission).toHaveBeenCalledWith({ mode: "readwrite" });
+    expect(file.content()).toBe("after");
+  });
+
+  it("reports denied browser write permission instead of pretending to save", async () => {
+    const file = fileHandle({ permission: "denied" });
+    await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po")).rejects.toThrow("Write permission was not granted for GAME.po");
+    expect(file.content()).toBe("before");
+  });
+
+  it("reports a failed disk verification instead of clearing the changed state", async () => {
+    const file = fileHandle({ permission: "granted", verifyWrite: false });
+    await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po")).rejects.toThrow("File write verification failed: GAME.po");
+    expect(file.requestPermission).not.toHaveBeenCalled();
   });
 });
 
