@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { defaultCsvMapping, parseCsv, updateCsv } from "../src/adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../src/adapters/po";
-import { filteredEntries, mergeEntries, projectStats, serializeProject } from "../src/core/project";
-import type { SourceDocument } from "../src/core/types";
+import { adjacentCell, canImportSourceTypes, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../src/core/project";
+import type { LingridProject, SourceDocument, TranslationEntry } from "../src/core/types";
 
 function fixture(name: string): string {
   return readFileSync(new URL(`../fixtures/${name}`, import.meta.url), "utf8");
@@ -15,6 +15,20 @@ function po(name: string): SourceDocument {
 }
 
 describe("PO adapter", () => {
+  it("reads the Language header instead of falling back to a shared PO filename", () => {
+    const zhRaw = fixture("zh-CN.po");
+    const jaRaw = fixture("ja.po");
+    const zhLanguage = detectPoLanguage(zhRaw, "GAME.po");
+    const jaLanguage = detectPoLanguage(jaRaw, "GAME.po");
+    const sameNamedDocuments: SourceDocument[] = [
+      { id: "zh", path: "zh-CN/GAME.po", name: "GAME.po", raw: zhRaw, type: "po", language: zhLanguage, writable: true },
+      { id: "ja", path: "ja/GAME.po", name: "GAME.po", raw: jaRaw, type: "po", language: jaLanguage, writable: true },
+    ];
+    const merged = sameNamedDocuments.reduce<TranslationEntry[]>((entries, document) => mergeEntries(entries, parsePo(document)), []);
+    expect([zhLanguage, jaLanguage]).toEqual(["zh-CN", "ja"]);
+    expect(Object.keys(merged[0].translations)).toEqual(["zh-CN", "ja"]);
+  });
+
   it("merges language documents using context and source", () => {
     const zh = parsePo(po("zh-CN.po"));
     const ja = parsePo(po("ja.po"));
@@ -68,12 +82,79 @@ describe("CSV adapter", () => {
 });
 
 describe("Project state", () => {
+  it("cycles translation sort modes and keeps empty values last for content sorting", () => {
+    const entries = [
+      { key: "b", source: "B", translations: { ja: { value: "Beta", changed: false } }, tags: [] },
+      { key: "empty", source: "Empty", translations: { ja: { value: "", changed: false } }, tags: [] },
+      { key: "a", source: "A", translations: { ja: { value: "Alpha", changed: false } }, tags: [] },
+    ];
+    expect(nextSortMode()).toBe("incomplete-first");
+    expect(nextSortMode("incomplete-first")).toBe("complete-first");
+    expect(nextSortMode("complete-first")).toBe("content-asc");
+    expect(nextSortMode("content-asc")).toBe("content-desc");
+    expect(nextSortMode("content-desc")).toBe("incomplete-first");
+    expect(sortedEntries(entries, "ja", "incomplete-first").map((entry) => entry.key)).toEqual(["empty", "b", "a"]);
+    expect(sortedEntries(entries, "ja", "content-asc").map((entry) => entry.key)).toEqual(["a", "b", "empty"]);
+    expect(sortedEntries(entries, "ja", "content-desc").map((entry) => entry.key)).toEqual(["b", "a", "empty"]);
+  });
+
+  it("replaces multiline msgstr continuations instead of leaving stale translation text", () => {
+    const raw = 'msgid ""\nmsgstr ""\n"Language: zh-CN\\n"\n\nmsgid "Greeting"\nmsgstr ""\n"Old "\n"value"\n';
+    const document: SourceDocument = { id: "multiline", path: "multiline.po", name: "multiline.po", raw, type: "po", language: "zh-CN", writable: true };
+    const entries = parsePo(document);
+    entries[0].translations["zh-CN"] = { value: "New value", changed: true };
+    const output = updatePo(document, entries);
+    expect(output).toContain('msgstr "New value"');
+    expect(output).not.toContain('"Old "');
+    expect(output).not.toContain('"value"');
+    expect(parsePo({ ...document, raw: output })[0].translations["zh-CN"].value).toBe("New value");
+  });
+
+  it("moves between editable translation cells with Enter and Tab semantics", () => {
+    const rows = ["menu.start", "menu.continue"];
+    const languages = ["zh-CN", "ja"];
+    expect(adjacentCell(rows, languages, { key: "menu.start", language: "zh-CN" }, "next")).toEqual({ key: "menu.start", language: "ja" });
+    expect(adjacentCell(rows, languages, { key: "menu.start", language: "ja" }, "next")).toEqual({ key: "menu.continue", language: "zh-CN" });
+    expect(adjacentCell(rows, languages, { key: "menu.start", language: "ja" }, "down")).toEqual({ key: "menu.continue", language: "ja" });
+    expect(adjacentCell(rows, languages, { key: "menu.start", language: "zh-CN" }, "previous")).toBeNull();
+  });
+
+  it("moves language columns left and right without mutating the existing order", () => {
+    const order = ["zh-CN", "en", "ja"];
+    expect(moveColumn(order, "ja", -1)).toEqual(["zh-CN", "ja", "en"]);
+    expect(moveColumn(order, "zh-CN", 1)).toEqual(["en", "zh-CN", "ja"]);
+    expect(moveColumn(order, "zh-CN", -1)).toBe(order);
+  });
+
+  it("reorders a dragged language column at the dropped language position", () => {
+    const order = ["zh-CN", "en", "ja"];
+    expect(reorderColumn(order, "ja", "zh-CN")).toEqual(["ja", "zh-CN", "en"]);
+    expect(reorderColumn(order, "zh-CN", "ja")).toEqual(["en", "zh-CN", "ja"]);
+    expect(reorderColumn(order, "zh-CN", "ja", "after")).toEqual(["en", "ja", "zh-CN"]);
+    expect(reorderColumn(order, "en", "en")).toBe(order);
+  });
+
+  it("matches project files from either a narrow or broad authorized parent folder", () => {
+    const stored = "C:\\Users\\ddonl\\gamedev\\localization\\game\\cn\\GAME.po";
+    expect(pathsReferToSameFile(stored, "game/cn/GAME.po")).toBe(true);
+    expect(pathsReferToSameFile(stored, "localization/game/cn/GAME.po")).toBe(true);
+    expect(pathsReferToSameFile("localization/game/cn/GAME.po", "game/cn/GAME.po")).toBe(true);
+    expect(pathsReferToSameFile(stored, "localization/game/jp/GAME.po")).toBe(false);
+  });
+
+  it("does not allow PO/POT and CSV files in the same project", () => {
+    expect(canImportSourceTypes(["po"], ["pot"])).toBe(true);
+    expect(canImportSourceTypes(["po"], ["csv"])).toBe(false);
+    expect(canImportSourceTypes([], ["po", "csv"])).toBe(false);
+  });
+
   it("stores file metadata and tags without translation bodies", () => {
     const document = po("zh-CN.po");
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
-    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, view: { search: "", completion: "all", changedOnly: false, tag: "" } });
+    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, columnWidths: { "zh-CN": 240 }, view: { search: "", completion: "all", completionLanguages: [], changedOnly: false, tags: [] } });
     expect(output).toContain('"#ui"');
+    expect(output).toContain('"zh-CN": 240');
     expect(output).not.toContain("开始游戏");
   });
 
@@ -82,8 +163,30 @@ describe("Project state", () => {
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
     entries[0].translations["zh-CN"].changed = true;
-    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, view: { search: "#ui", completion: "all" as const, changedOnly: true, tag: "#ui" } };
+    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], changedOnly: true, tags: ["#ui"] } };
     expect(filteredEntries(project)).toHaveLength(1);
     expect(projectStats(project)).toEqual({ total: 2, languages: { "zh-CN": { translated: 1, missing: 1, completion: 50 } }, tags: { "#ui": 1 }, changed: 1 });
+  });
+
+  it("filters completion by selected languages and matches any selected tag", () => {
+    const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
+    entries[0].tags = ["#ui"];
+    entries[1].tags = ["#review"];
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], changedOnly: false, tags: ["#ui", "#review"] } };
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    project.view.completionLanguages = ["zh-CN"];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    project.view.completion = "complete";
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Start Game"]);
+  });
+
+  it("migrates legacy single-tag project views", () => {
+    expect(normalizeProjectView({ search: "", completion: "all", changedOnly: false, tag: "#ui" })).toEqual({
+      search: "",
+      completion: "all",
+      completionLanguages: [],
+      changedOnly: false,
+      tags: ["#ui"],
+    });
   });
 });

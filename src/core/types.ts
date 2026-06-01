@@ -26,6 +26,7 @@ export interface SourceDocument {
   path: string;
   name: string;
   type: DocumentType;
+  fileHandle?: FileSystemFileHandle;
   language?: string;
   raw: string;
   writable: boolean;
@@ -36,9 +37,16 @@ export interface SourceDocument {
 export interface ProjectView {
   search: string;
   completion: "all" | "complete" | "incomplete";
+  completionLanguages: string[];
   changedOnly: boolean;
-  tag: string;
+  tags: string[];
+  sort?: {
+    language: string;
+    mode: TranslationSortMode;
+  };
 }
+
+export type TranslationSortMode = "incomplete-first" | "complete-first" | "content-asc" | "content-desc";
 
 export interface LingridProject {
   version: "0.1";
@@ -46,8 +54,10 @@ export interface LingridProject {
   entries: TranslationEntry[];
   columnOrder: string[];
   columnLabels: Record<string, string>;
+  columnWidths: Record<string, number>;
   view: ProjectView;
   projectPath?: string;
+  projectFileHandle?: FileSystemFileHandle;
 }
 
 export interface AiSettings {

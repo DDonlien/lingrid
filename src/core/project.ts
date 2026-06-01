@@ -1,11 +1,22 @@
-import type { LingridProject, ProjectView, TranslationEntry } from "./types";
+import type { DocumentType, LingridProject, ProjectView, TranslationEntry, TranslationSortMode } from "./types";
 
 export const DEFAULT_VIEW: ProjectView = {
   search: "",
   completion: "all",
+  completionLanguages: [],
   changedOnly: false,
-  tag: "",
+  tags: [],
 };
+
+export function normalizeProjectView(view?: Partial<ProjectView> & { tag?: string }): ProjectView {
+  const { tag, ...current } = view ?? {};
+  return {
+    ...DEFAULT_VIEW,
+    ...current,
+    completionLanguages: view?.completionLanguages ?? [],
+    tags: view?.tags ?? (tag ? [tag] : []),
+  };
+}
 
 export function createProject(): LingridProject {
   return {
@@ -14,8 +25,62 @@ export function createProject(): LingridProject {
     entries: [],
     columnOrder: [],
     columnLabels: {},
+    columnWidths: {},
     view: { ...DEFAULT_VIEW },
   };
+}
+
+export function canImportSourceTypes(existing: DocumentType[], incoming: DocumentType[]): boolean {
+  const formats = new Set([...existing, ...incoming].map((type) => type === "csv" ? "csv" : "po"));
+  return formats.size <= 1;
+}
+
+export function pathsReferToSameFile(storedPath: string, scannedPath: string): boolean {
+  const normalize = (path: string) => path.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "").toLowerCase();
+  const stored = normalize(storedPath);
+  const scanned = normalize(scannedPath);
+  return Boolean(stored && scanned && (
+    stored === scanned ||
+    stored.endsWith(`/${scanned}`) ||
+    scanned.endsWith(`/${stored}`)
+  ));
+}
+
+export function moveColumn(columnOrder: string[], language: string, offset: -1 | 1): string[] {
+  const index = columnOrder.indexOf(language);
+  const target = index + offset;
+  if (index < 0 || target < 0 || target >= columnOrder.length) return columnOrder;
+  const next = [...columnOrder];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+export function reorderColumn(columnOrder: string[], language: string, targetLanguage: string, placement: "before" | "after" = "before"): string[] {
+  const index = columnOrder.indexOf(language);
+  const target = columnOrder.indexOf(targetLanguage);
+  if (index < 0 || target < 0 || index === target) return columnOrder;
+  const next = [...columnOrder];
+  const [column] = next.splice(index, 1);
+  const adjustedTarget = target - (index < target ? 1 : 0);
+  next.splice(adjustedTarget + (placement === "after" ? 1 : 0), 0, column);
+  return next;
+}
+
+export function adjacentCell(
+  entryKeys: string[],
+  languages: string[],
+  current: { key: string; language: string },
+  direction: "next" | "previous" | "down",
+): { key: string; language: string } | null {
+  const row = entryKeys.indexOf(current.key);
+  const column = languages.indexOf(current.language);
+  if (row < 0 || column < 0 || !entryKeys.length || !languages.length) return null;
+  if (direction === "down") {
+    return row + 1 < entryKeys.length ? { key: entryKeys[row + 1], language: current.language } : null;
+  }
+  const index = row * languages.length + column + (direction === "next" ? 1 : -1);
+  if (index < 0 || index >= entryKeys.length * languages.length) return null;
+  return { key: entryKeys[Math.floor(index / languages.length)], language: languages[index % languages.length] };
 }
 
 export function mergeEntries(
@@ -46,9 +111,11 @@ export function filteredEntries(project: LingridProject): TranslationEntry[] {
   const query = project.view.search.trim().toLowerCase();
   return project.entries.filter((entry) => {
     const values = Object.values(entry.translations).map((cell) => cell.value);
-    const complete =
-      project.columnOrder.length > 0 &&
-      project.columnOrder.every((language) => entry.translations[language]?.value.trim());
+    const completionLanguages = project.view.completionLanguages.length
+      ? project.view.completionLanguages
+      : project.columnOrder;
+    const complete = completionLanguages.length > 0 &&
+      completionLanguages.every((language) => entry.translations[language]?.value.trim());
     const changed = Object.values(entry.translations).some((cell) => cell.changed);
     const matchesQuery =
       !query ||
@@ -58,13 +125,41 @@ export function filteredEntries(project: LingridProject): TranslationEntry[] {
 
     return (
       matchesQuery &&
-      (!project.view.tag || entry.tags.includes(project.view.tag)) &&
+      (!project.view.tags.length || project.view.tags.some((tag) => entry.tags.includes(tag))) &&
       (!project.view.changedOnly || changed) &&
       (project.view.completion === "all" ||
         (project.view.completion === "complete" && complete) ||
         (project.view.completion === "incomplete" && !complete))
     );
   });
+}
+
+export function sortedEntries(entries: TranslationEntry[], language: string, mode: TranslationSortMode): TranslationEntry[] {
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  return entries.map((entry, index) => ({ entry, index })).sort((left, right) => {
+    const leftValue = left.entry.translations[language]?.value.trim() ?? "";
+    const rightValue = right.entry.translations[language]?.value.trim() ?? "";
+    const leftEmpty = !leftValue;
+    const rightEmpty = !rightValue;
+    if (leftEmpty !== rightEmpty) {
+      if (mode === "incomplete-first") return leftEmpty ? -1 : 1;
+      return leftEmpty ? 1 : -1;
+    }
+    if (leftEmpty && rightEmpty) return left.index - right.index;
+    if (mode === "content-asc" || mode === "content-desc") {
+      const result = collator.compare(leftValue, rightValue);
+      if (result) return mode === "content-asc" ? result : -result;
+    }
+    return left.index - right.index;
+  }).map(({ entry }) => entry);
+}
+
+export function nextSortMode(mode?: TranslationSortMode): TranslationSortMode {
+  if (!mode) return "incomplete-first";
+  if (mode === "incomplete-first") return "complete-first";
+  if (mode === "complete-first") return "content-asc";
+  if (mode === "content-asc") return "content-desc";
+  return "incomplete-first";
 }
 
 export function serializeProject(project: LingridProject): string {
@@ -85,6 +180,7 @@ export function serializeProject(project: LingridProject): string {
       })),
       columnOrder: project.columnOrder,
       columnLabels: project.columnLabels,
+      columnWidths: project.columnWidths,
       tags,
       view: project.view,
     },

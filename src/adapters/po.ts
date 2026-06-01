@@ -27,6 +27,12 @@ function encodeQuoted(value: string): string {
   return JSON.stringify(value).slice(1, -1);
 }
 
+function replaceField(raw: string, field: string, value: string): string {
+  const encoded = encodeQuoted(value);
+  const pattern = new RegExp(`^${field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s+".*"(?:\\r?\\n".*")*`, "m");
+  return pattern.test(raw) ? raw.replace(pattern, `${field} "${encoded}"`) : `${raw}\n${field} "${encoded}"`;
+}
+
 function fieldValue(lines: string[], field: string): string | undefined {
   const index = lines.findIndex((line) => line.startsWith(`${field} `));
   if (index < 0) return undefined;
@@ -68,7 +74,7 @@ function stableKey(context = "", source = "", plural = ""): string {
 }
 
 export function detectPoLanguage(raw: string, fallback: string): string {
-  const match = raw.match(/Language:\\s*([^\\n"]+)/i);
+  const match = raw.match(/^"?Language:\s*([^\\\r\n"]+)/im);
   return match?.[1]?.trim() || fallback.replace(/\.(po|pot)$/i, "");
 }
 
@@ -104,14 +110,10 @@ export function updatePo(
       if (!cell?.changed && !entry?.sourceChanged) return block.raw;
       let output = block.raw;
       if (entry?.sourceChanged) {
-        output = output.replace(/^msgid\s+".*"$/m, `msgid "${encodeQuoted(entry.source)}"`);
+        output = replaceField(output, "msgid", entry.source);
       }
       if (!cell?.changed) return output;
-      const encoded = encodeQuoted(cell.value);
-      if (/^msgstr\s+"/m.test(output)) {
-        return output.replace(/^msgstr\s+".*"$/m, `msgstr "${encoded}"`);
-      }
-      return `${output}\nmsgstr "${encoded}"`;
+      return replaceField(output, "msgstr", cell.value);
     })
     .join("\n\n");
 }

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { readFile, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +32,7 @@ ipcMain.handle("files:open", async (_event, extensions: string[]) => {
   return Promise.all(
     result.filePaths.map(async (path) => ({
       path,
-      name: path.split("/").pop() ?? path,
+      name: basename(path),
       content: await readFile(path, "utf8"),
       modifiedAt: (await stat(path)).mtimeMs,
     })),
@@ -44,19 +44,26 @@ ipcMain.handle("files:write", async (_event, path: string, content: string, expe
     throw new Error(`File changed outside Lingrid: ${path}`);
   }
   await writeFile(path, content, "utf8");
+  if (await readFile(path, "utf8") !== content) {
+    throw new Error(`File write verification failed: ${path}`);
+  }
   return (await stat(path)).mtimeMs;
 });
 
-ipcMain.handle("files:read-many", async (_event, paths: string[]) =>
-  Promise.all(
+ipcMain.handle("files:read-many", async (_event, paths: string[]) => {
+  const results = await Promise.allSettled(
     paths.map(async (path) => ({
       path,
-      name: path.split("/").pop() ?? path,
+      name: basename(path),
       content: await readFile(path, "utf8"),
       modifiedAt: (await stat(path)).mtimeMs,
     })),
-  ),
-);
+  );
+  return {
+    files: results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []),
+    missingPaths: paths.filter((_path, index) => results[index].status === "rejected"),
+  };
+});
 
 ipcMain.handle("files:save-as", async (_event, name: string, content: string) => {
   const result = await dialog.showSaveDialog({ defaultPath: name });
