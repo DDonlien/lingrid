@@ -6,7 +6,11 @@ export const DEFAULT_VIEW: ProjectView = {
   completionLanguages: [],
   changedOnly: false,
   tags: [],
+  wordTags: [],
+  wordTagLanguages: [],
+  forceMissingCells: false,
 };
+export const EMPTY_TAG_FILTER = "\u0000empty";
 
 export function normalizeProjectView(view?: Partial<ProjectView> & { tag?: string }): ProjectView {
   const { tag, ...current } = view ?? {};
@@ -15,6 +19,8 @@ export function normalizeProjectView(view?: Partial<ProjectView> & { tag?: strin
     ...current,
     completionLanguages: view?.completionLanguages ?? [],
     tags: view?.tags ?? (tag ? [tag] : []),
+    wordTags: view?.wordTags ?? [],
+    wordTagLanguages: view?.wordTagLanguages ?? [],
   };
 }
 
@@ -107,29 +113,66 @@ export function normalizeTag(tag: string): string {
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
 }
 
+export function applyTranslationDrafts(
+  entries: TranslationEntry[],
+  columnOrder: string[],
+  drafts: Record<string, string>,
+): TranslationEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    translations: Object.fromEntries(columnOrder.flatMap((language) => {
+      const key = `${entry.key}\u0001${language}`;
+      const cell = entry.translations[language];
+      if (!cell && !(key in drafts)) return [];
+      const value = key in drafts ? drafts[key] : cell.value;
+      return [[language, { ...cell, value, changed: cell?.changed || value !== (cell?.value ?? "") }]];
+    })),
+  }));
+}
+
+export function cellParticipates(entry: TranslationEntry, language: string, forceMissingCells = false): boolean {
+  return forceMissingCells || Boolean(entry.translations[language]);
+}
+
 export function filteredEntries(project: LingridProject): TranslationEntry[] {
   const query = project.view.search.trim().toLowerCase();
   return project.entries.filter((entry) => {
     const values = Object.values(entry.translations).map((cell) => cell.value);
+    const wordTagLanguages = project.view.wordTagLanguages.length ? project.view.wordTagLanguages : project.columnOrder;
     const completionLanguages = project.view.completionLanguages.length
       ? project.view.completionLanguages
       : project.columnOrder;
-    const complete = completionLanguages.length > 0 &&
-      completionLanguages.every((language) => entry.translations[language]?.value.trim());
+    const participatingLanguages = completionLanguages.filter((language) => cellParticipates(entry, language, project.view.forceMissingCells));
+    const complete = participatingLanguages.length > 0 &&
+      participatingLanguages.every((language) => entry.translations[language]?.value.trim());
     const changed = Object.values(entry.translations).some((cell) => cell.changed);
     const matchesQuery =
       !query ||
       entry.source.toLowerCase().includes(query) ||
       entry.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+      Object.values(entry.translations).some((cell) => cell.tags?.some((tag) => tag.toLowerCase().includes(query))) ||
       values.some((value) => value.toLowerCase().includes(query));
+    const matchesWordTags = !project.view.wordTags.length || wordTagLanguages.some((language) => {
+      const cell = entry.translations[language];
+      if (!cell) return false;
+      const tags = cell.tags ?? [];
+      return (
+        tags.some((tag) => project.view.wordTags.includes(tag)) ||
+        (project.view.wordTags.includes(EMPTY_TAG_FILTER) && tags.length === 0)
+      );
+    });
 
     return (
       matchesQuery &&
-      (!project.view.tags.length || project.view.tags.some((tag) => entry.tags.includes(tag))) &&
+      (!project.view.tags.length ||
+        project.view.tags.some((tag) => entry.tags.includes(tag)) ||
+        (project.view.tags.includes(EMPTY_TAG_FILTER) && entry.tags.length === 0)) &&
+      matchesWordTags &&
       (!project.view.changedOnly || changed) &&
       (project.view.completion === "all" ||
+        (participatingLanguages.length === 0 ? false :
         (project.view.completion === "complete" && complete) ||
-        (project.view.completion === "incomplete" && !complete))
+        (project.view.completion === "incomplete" && !complete)))
     );
   });
 }
@@ -166,6 +209,12 @@ export function serializeProject(project: LingridProject): string {
   const tags = Object.fromEntries(
     project.entries.filter((entry) => entry.tags.length).map((entry) => [entry.key, entry.tags]),
   );
+  const wordTags = Object.fromEntries(project.entries.flatMap((entry) => {
+    const cells = Object.fromEntries(Object.entries(entry.translations)
+      .filter(([, cell]) => cell.tags?.length)
+      .map(([language, cell]) => [language, cell.tags]));
+    return Object.keys(cells).length ? [[entry.key, cells]] : [];
+  }));
   return JSON.stringify(
     {
       version: project.version,
@@ -182,7 +231,7 @@ export function serializeProject(project: LingridProject): string {
       columnLabels: project.columnLabels,
       columnWidths: project.columnWidths,
       tags,
-      view: project.view,
+      wordTags,
     },
     null,
     2,
@@ -192,8 +241,9 @@ export function serializeProject(project: LingridProject): string {
 export function projectStats(project: LingridProject) {
   const languages = Object.fromEntries(
     project.columnOrder.map((language) => {
-      const translated = project.entries.filter((entry) => entry.translations[language]?.value.trim()).length;
-      return [language, { translated, missing: project.entries.length - translated, completion: project.entries.length ? Math.round((translated / project.entries.length) * 100) : 0 }];
+      const participating = project.entries.filter((entry) => cellParticipates(entry, language, project.view.forceMissingCells));
+      const translated = participating.filter((entry) => entry.translations[language]?.value.trim()).length;
+      return [language, { translated, missing: participating.length - translated, total: participating.length, completion: participating.length ? Math.round((translated / participating.length) * 100) : 0 }];
     }),
   );
   const tags: Record<string, number> = {};

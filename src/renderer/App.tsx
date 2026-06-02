@@ -3,6 +3,7 @@ import {
   ArrowDownUp,
   Bot,
   Check,
+  ClipboardList,
   FilePlus2,
   FileText,
   Filter,
@@ -22,12 +23,12 @@ import {
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
-import { writeBrowserFile } from "../core/browser-files";
-import { adjacentCell, canImportSourceTypes, createProject, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, reorderColumn, serializeProject, sortedEntries } from "../core/project";
+import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
+import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
 import type { AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { createDemoProject } from "./demo";
 
-type Modal = "ai" | "batch" | "files" | "csv" | null;
+type Modal = "ai" | "batch" | "files" | "csv" | "diagnostics" | null;
 type Selection = { key: string; language: string } | null;
 type UiLanguage = "zh" | "ja" | "en";
 type ProjectConfig = {
@@ -36,10 +37,11 @@ type ProjectConfig = {
   columnLabels?: Record<string, string>;
   columnWidths?: Record<string, number>;
   tags?: Record<string, string[]>;
+  wordTags?: Record<string, Record<string, string[]>>;
   view?: Partial<LingridProject["view"]> & { tag?: string };
 };
 type BrowserSourceFile = { name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle };
-type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "error"; message: string };
+type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "download"; fileCount: number } | { kind: "error"; message: string };
 const cellDraftKey = (entryKey: string, language: string) => `${entryKey}\u0001${language}`;
 const SOURCE_COLUMN = "$source";
 const TAGS_COLUMN = "$tags";
@@ -58,43 +60,49 @@ const UI_TEXT = {
     open: "打开", importCsv: "导入 CSV", openProject: "打开项目", authorizeFolder: "授权项目文件夹", csvMapping: "CSV 映射",
     save: "保存", saveAs: "另存为", saveProject: "保存项目", saveProjectAs: "项目另存为", batchReplace: "批量替换", aiSettings: "AI 设置",
     search: "搜索 source、译文或 #tag", allEntries: "全部条目", complete: "已完成", incomplete: "未完成", languages: "语言", allLanguages: "全部语言",
-    changedOnly: "仅显示已修改", allTags: "全部 tags", source: "Source", tags: "Tags", missingTranslation: "缺少译文",
+    changedOnly: "仅显示已修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
-    allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格",
+    allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
     aiSuggestionSettings: "AI 建议设置", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
+    diagnostics: "诊断日志", copyDiagnostics: "复制日志", clearDiagnostics: "清空日志", diagnosticsCopied: "诊断日志已复制",
+    forceMissingCells: "强制补齐", unavailableCell: "源文件中不存在此条目",
   },
   ja: {
     open: "開く", importCsv: "CSV を読み込む", openProject: "プロジェクトを開く", authorizeFolder: "フォルダーを許可", csvMapping: "CSV マッピング",
     save: "保存", saveAs: "名前を付けて保存", saveProject: "プロジェクトを保存", saveProjectAs: "プロジェクトを別名保存", batchReplace: "一括置換", aiSettings: "AI 設定",
     search: "source、翻訳、#tag を検索", allEntries: "すべて", complete: "完了", incomplete: "未完了", languages: "言語", allLanguages: "すべての言語",
-    changedOnly: "変更のみ", allTags: "すべての tags", source: "Source", tags: "Tags", missingTranslation: "翻訳なし",
+    changedOnly: "変更のみ", allTags: "すべて", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "すべて", missingTranslation: "翻訳なし",
     detailEditor: "詳細エディター", noSelection: "未選択", keyContext: "Key / context", translation: "翻訳", enterTranslation: "翻訳を入力…",
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
-    allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル",
+    allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
     aiSuggestionSettings: "AI 提案設定", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
+    diagnostics: "診断ログ", copyDiagnostics: "ログをコピー", clearDiagnostics: "ログを消去", diagnosticsCopied: "診断ログをコピーしました",
+    forceMissingCells: "不足項目を強制追加", unavailableCell: "ソースファイルにこの項目はありません",
   },
   en: {
     open: "Open", importCsv: "Import CSV", openProject: "Open Project", authorizeFolder: "Authorize Project Folder", csvMapping: "CSV Mapping",
     save: "Save", saveAs: "Save As", saveProject: "Save Project", saveProjectAs: "Save Project As", batchReplace: "Batch Replace", aiSettings: "AI Settings",
     search: "Search source, translation or #tag", allEntries: "All entries", complete: "Complete", incomplete: "Incomplete", languages: "Languages", allLanguages: "All languages",
-    changedOnly: "Changed only", allTags: "All tags", source: "Source", tags: "Tags", missingTranslation: "Missing translation",
+    changedOnly: "Changed only", allTags: "All", emptyTag: "Empty", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "All", missingTranslation: "Missing translation",
     detailEditor: "Detail editor", noSelection: "No selection", keyContext: "Key / context", translation: "Translation", enterTranslation: "Enter translation…",
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
-    allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells",
+    allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
     aiSuggestionSettings: "AI suggestion settings", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
+    diagnostics: "Diagnostic Log", copyDiagnostics: "Copy Log", clearDiagnostics: "Clear Log", diagnosticsCopied: "Diagnostic log copied",
+    forceMissingCells: "Force Missing Entries", unavailableCell: "This entry does not exist in the source file",
   },
 } as const;
 const AI_DEFAULT: AiSettings = {
@@ -182,6 +190,20 @@ function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
+function allValuesSelected(values: string[], options: string[]): boolean {
+  return options.length > 0 && options.every((option) => values.includes(option));
+}
+
+function tagColor(tag: string): string {
+  let hash = 0;
+  for (const char of tag) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+  return `hsl(${hash} 68% 52%)`;
+}
+
+function errorDetails(error: unknown): Record<string, unknown> {
+  return error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { error: String(error) };
+}
+
 function FilterMenu({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
   return <details className="filter-menu"><summary className={`filter-toggle ${active ? "active" : ""}`}><Filter size={14} />{label}</summary><div className="filter-popover">{children}</div></details>;
 }
@@ -208,6 +230,7 @@ export function App() {
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
   const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(createDemoProject()));
   const [pendingBrowserProject, setPendingBrowserProject] = useState<{ config: ProjectConfig; projectFileHandle: FileSystemFileHandle } | null>(null);
+  const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
   const pendingProjectConfig = useRef<ProjectConfig | null>(null);
@@ -219,6 +242,36 @@ export function App() {
     localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
     document.documentElement.lang = uiLanguage;
   }, [uiLanguage]);
+  useEffect(() => {
+    function closeOpenMenus(event: PointerEvent) {
+      document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
+        if (!details.contains(event.target as Node)) details.removeAttribute("open");
+      });
+    }
+    document.addEventListener("pointerdown", closeOpenMenus);
+    return () => document.removeEventListener("pointerdown", closeOpenMenus);
+  }, []);
+  function appendDiagnostic(event: string, details: Record<string, unknown> = {}) {
+    const line = `${new Date().toISOString()} ${event} ${JSON.stringify(details)}`;
+    setDiagnostics((current) => [...current.slice(-999), line]);
+  }
+
+  function diagnosticReport() {
+    const runtime = {
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      electron: Boolean(window.lingrid),
+      showOpenFilePicker: Boolean(window.showOpenFilePicker),
+      showDirectoryPicker: Boolean(window.showDirectoryPicker),
+      showSaveFilePicker: Boolean(window.showSaveFilePicker),
+    };
+    return [`Lingrid diagnostics`, `${new Date().toISOString()} runtime ${JSON.stringify(runtime)}`, ...diagnostics].join("\n");
+  }
+
+  async function copyDiagnostics() {
+    await navigator.clipboard.writeText(diagnosticReport());
+    setNotice(t.diagnosticsCopied);
+  }
   const visible = useMemo(
     () => {
       const entries = filteredEntries({ ...project, view: { ...project.view, search: deferredSearch } });
@@ -243,6 +296,8 @@ export function App() {
   ].filter(Boolean);
   const sourceSaveLog = sourceSaveStatus.kind === "success"
     ? `${sourceFormatLabel(project)} ${t.savedAndVerified}: ${sourceSaveStatus.changedCount} ${t.changedCells}`
+    : sourceSaveStatus.kind === "download"
+      ? `${t.downloadedCopy}: ${sourceSaveStatus.fileCount}`
     : sourceSaveStatus.kind === "error"
       ? `${sourceFormatLabel(project)} ${t.saveFailed}: ${sourceSaveStatus.message}`
       : "";
@@ -251,6 +306,11 @@ export function App() {
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
     project.entries.forEach((entry) => entry.tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1)));
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [project.entries]);
+  const wordTagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    project.entries.forEach((entry) => Object.values(entry.translations).forEach((cell) => cell.tags?.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1))));
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [project.entries]);
 
@@ -269,7 +329,9 @@ export function App() {
       ...state,
       entries: state.entries.map((entry) =>
         entry.key === entryKey
-          ? { ...entry, translations: { ...entry.translations, [language]: { value, changed: true } } }
+          ? (!entry.translations[language] && !state.view.forceMissingCells
+            ? entry
+            : { ...entry, translations: { ...entry.translations, [language]: { ...entry.translations[language], value, changed: true } } })
           : entry,
       ),
     }));
@@ -332,10 +394,12 @@ export function App() {
   }
 
   async function openProject() {
+    appendDiagnostic("project.open.start", { electron: Boolean(window.lingrid) });
     if (window.lingrid) {
       const [projectFile] = await window.lingrid.openFiles(["json"]);
       if (!projectFile) return;
       const config = JSON.parse(projectFile.content) as ProjectConfig;
+      appendDiagnostic("project.open.json", { path: projectFile.path, configuredFiles: config.files?.length ?? 0 });
       const { files, missingPaths } = await window.lingrid.readFiles((config.files ?? []).map((file) => file.path));
       restoreProject(config, files, projectFile.path, undefined, missingPaths);
       return;
@@ -351,8 +415,10 @@ export function App() {
       if (!projectFileHandle) return;
       const projectFile = await projectFileHandle.getFile();
       const config = JSON.parse(await projectFile.text()) as ProjectConfig;
+      appendDiagnostic("project.open.json", { name: projectFile.name, bytes: projectFile.size, modifiedAt: projectFile.lastModified, configuredFiles: config.files?.length ?? 0 });
       if (window.showDirectoryPicker) {
         setPendingBrowserProject({ config, projectFileHandle });
+        appendDiagnostic("project.open.awaitingDirectoryAuthorization");
         setNotice("Project JSON loaded. Authorize its project folder to reopen source files.");
       } else {
         const sourceHandles = await window.showOpenFilePicker({
@@ -363,6 +429,7 @@ export function App() {
         restoreProject(config, files, undefined, projectFileHandle);
       }
     } catch (error) {
+      appendDiagnostic("project.open.error", errorDetails(error));
       if ((error as DOMException).name !== "AbortError") setNotice("Could not open the project JSON.");
     }
   }
@@ -394,15 +461,7 @@ export function App() {
   }
 
   function applyCellDrafts(entries: TranslationEntry[]): TranslationEntry[] {
-    return entries.map((entry) => ({
-      ...entry,
-      translations: Object.fromEntries(project.columnOrder.map((language) => {
-        const key = cellDraftKey(entry.key, language);
-        const cell = entry.translations[language] ?? { value: "", changed: false };
-        const value = key in cellDrafts ? cellDrafts[key] : cell.value;
-        return [language, { value, changed: cell.changed || value !== cell.value }];
-      })),
-    }));
+    return applyTranslationDrafts(entries, project.columnOrder, cellDrafts);
   }
 
   function cycleSort(language: string) {
@@ -470,17 +529,21 @@ export function App() {
 
   async function authorizeProjectDirectory() {
     if (!pendingBrowserProject || !window.showDirectoryPicker) return;
+    appendDiagnostic("directory.authorization.start", { mode: "readwrite" });
     try {
       const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      appendDiagnostic("directory.authorization.success", { name: directoryHandle.name });
       const { files, missingPaths } = await readBrowserProjectDirectory(directoryHandle, pendingBrowserProject.config);
       restoreProject(pendingBrowserProject.config, files, undefined, pendingBrowserProject.projectFileHandle, missingPaths);
       setPendingBrowserProject(null);
     } catch (error) {
+      appendDiagnostic("directory.authorization.error", errorDetails(error));
       if ((error as DOMException).name !== "AbortError") setNotice("Could not read the selected project folder.");
     }
   }
 
   function restoreProject(config: ProjectConfig, files: BrowserSourceFile[], projectPath?: string, projectFileHandle?: FileSystemFileHandle, missingPaths: string[] = []) {
+    appendDiagnostic("project.restore.start", { files: files.length, missingPaths, projectPath });
     if (!files.length) {
       setNotice(missingPaths.length ? `Could not open project: ${missingPaths.length} source file${missingPaths.length === 1 ? " is" : "s are"} missing.` : "The project has no readable source files.");
       return;
@@ -500,10 +563,17 @@ export function App() {
       next.entries = mergeEntries(next.entries, entries);
     }
     next.entries = next.entries.map((entry) => ({ ...entry, tags: config.tags?.[entry.key] ?? [] }));
+    next.entries = next.entries.map((entry) => ({
+      ...entry,
+      translations: Object.fromEntries(Object.entries(entry.translations).map(([language, cell]) => [
+        language,
+        { ...cell, tags: config.wordTags?.[entry.key]?.[language] ?? [] },
+      ])),
+    }));
     next.columnOrder = config.columnOrder ?? [...new Set(next.entries.flatMap((entry) => Object.keys(entry.translations)))];
     next.columnLabels = config.columnLabels ?? Object.fromEntries(next.columnOrder.map((language) => [language, language]));
     next.columnWidths = config.columnWidths ?? {};
-    next.view = normalizeProjectView(config.view);
+    next.view = normalizeProjectView();
     next.projectPath = projectPath;
     next.projectFileHandle = projectFileHandle;
     setCellDrafts({});
@@ -514,6 +584,7 @@ export function App() {
     setNotice(missingPaths.length
       ? `Opened ${files.length} source file${files.length === 1 ? "" : "s"}; skipped ${missingPaths.length} missing file${missingPaths.length === 1 ? "" : "s"}.`
       : `Opened project with ${files.length} source files`);
+    appendDiagnostic("project.restore.success", { documents: next.documents.length, entries: next.entries.length, languages: next.columnOrder });
   }
 
   async function readBrowserSourceFiles(handles: FileSystemFileHandle[]): Promise<BrowserSourceFile[]> {
@@ -525,6 +596,7 @@ export function App() {
 
   async function readBrowserProjectDirectory(directoryHandle: FileSystemDirectoryHandle, config: ProjectConfig) {
     const available: BrowserSourceFile[] = [];
+    appendDiagnostic("directory.scan.start", { name: directoryHandle.name, configuredFiles: config.files?.length ?? 0 });
     async function scan(directory: FileSystemDirectoryHandle, parent = "") {
       try {
         for await (const [name, handle] of directory.entries()) {
@@ -536,12 +608,15 @@ export function App() {
               const fileHandle = handle as FileSystemFileHandle;
               const file = await fileHandle.getFile();
               available.push({ name, path, content: await file.text(), modifiedAt: file.lastModified, fileHandle });
-            } catch {
+              appendDiagnostic("directory.scan.file", { path, bytes: file.size, modifiedAt: file.lastModified });
+            } catch (error) {
+              appendDiagnostic("directory.scan.file.error", { path, ...errorDetails(error) });
               // Skip unreadable source files without aborting the rest of the directory scan.
             }
           }
         }
-      } catch {
+      } catch (error) {
+        appendDiagnostic("directory.scan.error", { path: parent || ".", ...errorDetails(error) });
         // A broader authorized folder may contain unreadable subdirectories.
       }
     }
@@ -556,30 +631,62 @@ export function App() {
       });
       if (candidateIndex < 0) {
         missingPaths.push(stored.path || stored.name);
+        appendDiagnostic("directory.match.missing", { configuredPath: stored.path, name: stored.name, type: stored.type, language: stored.language });
       } else {
-        files.push(available.splice(candidateIndex, 1)[0]);
+        const [matched] = available.splice(candidateIndex, 1);
+        files.push(matched);
+        appendDiagnostic("directory.match.success", { configuredPath: stored.path, actualPath: matched.path, type: stored.type, language: stored.language });
       }
     }
+    appendDiagnostic("directory.scan.complete", { matchedFiles: files.length, missingPaths, unmatchedFiles: available.map((file) => file.path) });
     return { files, missingPaths };
   }
 
   async function saveSources() {
     const entries = applyCellDrafts(project.entries);
     let documents = [...project.documents];
+    appendDiagnostic("save.start", { documents: documents.length, changedCells: changedCount, drafts: Object.keys(cellDrafts).length, electron: Boolean(window.lingrid) });
     try {
       if (!documents.some((document) => document.writable)) {
         throw new Error("No writable PO or CSV source file is open.");
       }
+      const serialized = documents.map((document) => ({
+        document,
+        raw: document.type === "csv" ? updateCsv(document, entries) : updatePo(document, entries),
+      }));
+      serialized.forEach(({ document, raw }) => appendDiagnostic("save.serialize", {
+        path: document.path,
+        name: document.name,
+        type: document.type,
+        writable: document.writable,
+        hasFileHandle: Boolean(document.fileHandle),
+        beforeBytes: new Blob([document.raw]).size,
+        afterBytes: new Blob([raw]).size,
+        changed: raw !== document.raw,
+        modifiedAt: document.modifiedAt,
+      }));
+      const downloadOnly = serialized.filter(({ document, raw }) =>
+        document.writable && raw !== document.raw && !((window.lingrid && document.path) || document.fileHandle));
+      if (downloadOnly.length) {
+        downloadOnly.forEach(({ document, raw }) => download(document.name, raw));
+        setSourceSaveStatus({ kind: "download", fileCount: downloadOnly.length });
+        setNotice(t.downloadedCopy);
+        return;
+      }
+      await Promise.all(serialized.map(async ({ document, raw }) => {
+        if (!document.writable || raw === document.raw || !document.fileHandle || (window.lingrid && document.path)) return;
+        await verifyBrowserFileWritable(document.fileHandle, document.modifiedAt, document.name, appendDiagnostic);
+      }));
       for (let index = 0; index < documents.length; index += 1) {
         const document = documents[index];
         if (!document.writable) continue;
-        const raw = document.type === "csv" ? updateCsv(document, entries) : updatePo(document, entries);
+        const raw = serialized[index].raw;
         if (raw === document.raw) continue;
         let modifiedAt = document.modifiedAt;
         if (window.lingrid && document.path) {
           modifiedAt = await window.lingrid.writeFile(document.path, raw, document.modifiedAt);
         } else if (document.fileHandle) {
-          modifiedAt = await writeBrowserFile(document.fileHandle, raw, document.modifiedAt, document.name);
+          modifiedAt = await writeBrowserFile(document.fileHandle, raw, document.modifiedAt, document.name, appendDiagnostic);
         } else {
           throw new Error(`Direct source saving needs a retained local file handle for ${document.name}. Reopen it in a File System Access API browser or use Electron.`);
         }
@@ -603,8 +710,10 @@ export function App() {
       setCellDrafts({});
       setSourceSaveStatus({ kind: "success", changedCount: savedChangedCount });
       setNotice(`${sourceFormatLabel(project)} ${t.savedAndVerified}`);
+      appendDiagnostic("save.success", { changedCells: savedChangedCount });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not write the source file.";
+      appendDiagnostic("save.error", errorDetails(error));
       setProject({ ...project, documents, entries });
       setCellDrafts({});
       setSourceSaveStatus({ kind: "error", message });
@@ -639,7 +748,8 @@ export function App() {
       ? project.documents.find((item) => item.type === "csv")
       : project.documents.find((item) => item.type === "po" && item.language === selection?.language);
     if (!document) return setNotice(`Select a ${csvProject ? "CSV" : "PO"} source first`);
-    const content = document.type === "csv" ? updateCsv(document, project.entries) : updatePo(document, project.entries);
+    const entries = applyCellDrafts(project.entries);
+    const content = document.type === "csv" ? updateCsv(document, entries) : updatePo(document, entries);
     if (window.lingrid) await window.lingrid.saveAs(document.name, content);
     else if (window.showSaveFilePicker) {
       const fileHandle = await window.showSaveFilePicker({ suggestedName: document.name });
@@ -654,6 +764,16 @@ export function App() {
     setProject((state) => ({
       ...state,
       entries: state.entries.map((entry) => (entry.key === entryKey ? { ...entry, tags } : entry)),
+    }));
+  }
+
+  function updateWordTags(entryKey: string, language: string, raw: string) {
+    const tags = raw.split(/\s+/).map(normalizeTag).filter(Boolean);
+    setProject((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => entry.key === entryKey
+        ? { ...entry, translations: { ...entry.translations, [language]: { ...entry.translations[language], value: entry.translations[language]?.value ?? "", changed: entry.translations[language]?.changed ?? false, tags } } }
+        : entry),
     }));
   }
 
@@ -684,10 +804,11 @@ export function App() {
       };
     });
     const tags = new Map(project.entries.map((entry) => [entry.key, entry.tags]));
+    const wordTags = new Map(project.entries.map((entry) => [entry.key, Object.fromEntries(Object.entries(entry.translations).map(([language, cell]) => [language, cell.tags ?? []]))]));
     const entries = documents.reduce<TranslationEntry[]>((all, document) => {
       const parsed = document.type === "csv" ? parseCsv(document) : parsePo(document);
       return mergeEntries(all, parsed);
-    }, []).map((entry) => ({ ...entry, tags: tags.get(entry.key) ?? [] }));
+    }, []).map((entry) => ({ ...entry, tags: tags.get(entry.key) ?? [], translations: Object.fromEntries(Object.entries(entry.translations).map(([language, cell]) => [language, { ...cell, tags: wordTags.get(entry.key)?.[language] ?? [] }])) }));
     const discoveredLanguages = [...new Set(entries.flatMap((entry) => Object.keys(entry.translations)))];
     setProject({ ...project, documents, entries, columnOrder: discoveredLanguages, columnLabels: { ...project.columnLabels, ...Object.fromEntries(discoveredLanguages.map((language) => [language, project.columnLabels[language] ?? language])) } });
     setModal(null);
@@ -734,7 +855,7 @@ export function App() {
             Object.entries(entry.translations).map(([language, cell]) => {
               const inScope = batch.scope === "all" || language === selection?.language;
               const value = inScope ? replace(cell.value) : cell.value;
-              return [language, { value, changed: cell.changed || value !== cell.value }];
+              return [language, { ...cell, value, changed: cell.changed || value !== cell.value }];
             }),
           ),
         };
@@ -756,7 +877,11 @@ export function App() {
   const completionLabel = project.view.completion === "all"
     ? t.allEntries
     : `${project.view.completion === "complete" ? t.complete : t.incomplete}${project.view.completionLanguages.length ? ` · ${project.view.completionLanguages.length}` : ""}`;
-  const tagFilterLabel = project.view.tags.length ? `${t.tags} · ${project.view.tags.length}` : t.allTags;
+  const sourceTagOptions = [...tagCounts.map(([tag]) => tag), EMPTY_TAG_FILTER];
+  const wordTagOptions = [...wordTagCounts.map(([tag]) => tag), EMPTY_TAG_FILTER];
+  const tagFilterLabel = project.view.tags.length ? `${t.sourceTags} · ${project.view.tags.length}` : t.sourceTags;
+  const wordTagFilterLabel = project.view.wordTags.length ? `${t.wordTags} · ${project.view.wordTags.length}` : t.wordTags;
+  const stats = projectStats(project);
 
   return (
     <main className="app-shell">
@@ -775,6 +900,8 @@ export function App() {
           <Button onClick={() => saveProject(true)}>{t.saveProjectAs}</Button>
         </nav>
         <div className="toolbar right">
+          <Button variant={project.view.forceMissingCells ? "soft" : "ghost"} title={t.forceMissingCells} onClick={() => patchProject({ view: { ...project.view, forceMissingCells: !project.view.forceMissingCells } })}><FilePlus2 size={15} />{t.forceMissingCells}</Button>
+          <Button onClick={() => setModal("diagnostics")}><ClipboardList size={15} />{t.diagnostics}</Button>
           <Button onClick={() => setModal("batch")}><ArrowDownUp size={15} />{t.batchReplace}</Button>
           <Button variant="soft" onClick={() => setModal("ai")}><Bot size={15} />{t.aiSettings}</Button>
           <details className="ui-language-menu">
@@ -810,8 +937,17 @@ export function App() {
         </FilterMenu>
         <button className={`filter-toggle ${project.view.changedOnly ? "active" : ""}`} onClick={() => patchProject({ view: { ...project.view, changedOnly: !project.view.changedOnly } })}><Filter size={14} />{t.changedOnly}</button>
         <FilterMenu label={tagFilterLabel} active={Boolean(project.view.tags.length)}>
-          <label><input type="checkbox" checked={!project.view.tags.length} onChange={() => patchProject({ view: { ...project.view, tags: [] } })} />{t.allTags}</label>
+          <label><input type="checkbox" checked={allValuesSelected(project.view.tags, sourceTagOptions)} onChange={(event) => patchProject({ view: { ...project.view, tags: event.target.checked ? sourceTagOptions : [] } })} />{t.allTags}</label>
+          <div className="filter-divider" />
+          <label><input type="checkbox" checked={project.view.tags.includes(EMPTY_TAG_FILTER)} onChange={() => patchProject({ view: { ...project.view, tags: toggleValue(project.view.tags, EMPTY_TAG_FILTER) } })} />{t.emptyTag}</label>
           {tagCounts.map(([tag]) => <label key={tag}><input type="checkbox" checked={project.view.tags.includes(tag)} onChange={() => patchProject({ view: { ...project.view, tags: toggleValue(project.view.tags, tag) } })} />{tag}</label>)}
+        </FilterMenu>
+        <FilterMenu label={wordTagFilterLabel} active={Boolean(project.view.wordTags.length || project.view.wordTagLanguages.length)}>
+          <label><input type="checkbox" checked={allValuesSelected(project.view.wordTags, wordTagOptions)} onChange={(event) => patchProject({ view: { ...project.view, wordTags: event.target.checked ? wordTagOptions : [] } })} />{t.allWordTags}</label>
+          <div className="filter-divider" />
+          <label><input type="checkbox" checked={project.view.wordTags.includes(EMPTY_TAG_FILTER)} onChange={() => patchProject({ view: { ...project.view, wordTags: toggleValue(project.view.wordTags, EMPTY_TAG_FILTER) } })} />{t.emptyTag}</label>
+          {wordTagCounts.map(([tag]) => <label key={tag}><input type="checkbox" checked={project.view.wordTags.includes(tag)} onChange={() => patchProject({ view: { ...project.view, wordTags: toggleValue(project.view.wordTags, tag) } })} />{tag}</label>)}
+          <div className="filter-options"><strong>{t.languages}</strong><label><input type="checkbox" checked={!project.view.wordTagLanguages.length} onChange={() => patchProject({ view: { ...project.view, wordTagLanguages: [] } })} />{t.allLanguages}</label>{project.columnOrder.map((language) => <label key={language}><input type="checkbox" checked={project.view.wordTagLanguages.includes(language)} onChange={() => patchProject({ view: { ...project.view, wordTagLanguages: toggleValue(project.view.wordTagLanguages, language) } })} />{project.columnLabels[language] ?? language}</label>)}</div>
         </FilterMenu>
         <span className="filter-result">{visible.length} / {project.entries.length}</span>
       </section>
@@ -825,11 +961,13 @@ export function App() {
               <tr key={entry.key} className={entry.key === selection?.key ? "selected-row" : ""}>
                 <td className="source-col"><strong>{entry.source}</strong>{entry.context ? <small>{entry.context}</small> : null}</td>
                 {project.columnOrder.map((language) => {
-                  const cell = entry.translations[language] ?? { value: "", changed: false };
+                  const cell = entry.translations[language];
+                  const editable = Boolean(cell) || project.view.forceMissingCells;
                   const selected = entry.key === selection?.key && language === selection.language;
                   const draftKey = cellDraftKey(entry.key, language);
-                  return <td key={language} className={`translation-cell ${selected ? "selected-cell" : ""} ${cell.changed ? "changed" : ""}`} onClick={() => setSelection({ key: entry.key, language })}>
-                    <input ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell.value} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={t.missingTranslation} />
+                  return <td key={language} className={`translation-cell ${!editable ? "unavailable" : ""} ${selected ? "selected-cell" : ""} ${cell?.changed ? "changed" : ""}`} title={!editable ? t.unavailableCell : undefined} onClick={() => { if (editable) setSelection({ key: entry.key, language }); }}>
+                    {cell?.tags?.length ? <span className="word-tag-markers" title={cell.tags.join(" ")}>{cell.tags.map((tag) => <i key={tag} style={{ backgroundColor: tagColor(tag) }} />)}</span> : null}
+                    <input disabled={!editable} ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell?.value ?? ""} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={editable ? t.missingTranslation : ""} />
                   </td>;
                 })}
                 <td><input className="tag-input" value={entry.tags.join(" ")} onChange={(event) => updateTags(entry.key, event.target.value)} placeholder="#tag" /></td>
@@ -844,9 +982,11 @@ export function App() {
             <label className="field-label">{t.source}</label><div className="source-preview">{current.source}</div>
             {current.context ? <><label className="field-label">{t.keyContext}</label><code>{current.context}</code></> : null}
             <label className="field-label">{t.translation}</label>
-            <textarea className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={t.enterTranslation} />
-            <label className="field-label">{t.tags}</label>
+            <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={cellParticipates(current, selection.language, project.view.forceMissingCells) ? t.enterTranslation : t.unavailableCell} />
+            <label className="field-label">{t.sourceTags}</label>
             <input className="text-input" value={current.tags.join(" ")} onChange={(event) => updateTags(current.key, event.target.value)} placeholder="#ui #review" />
+            <label className="field-label">{t.wordTags}</label>
+            <input disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="text-input" value={currentCell?.tags?.join(" ") ?? ""} onChange={(event) => updateWordTags(current.key, selection.language, event.target.value)} placeholder="#review #todo" />
             <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={generateSuggestion} disabled={aiBusy}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{t.generate}</Button></div>
               <p>{suggestion || t.aiEmpty}</p>
               <Button variant="soft" disabled={!suggestion} onClick={() => { updateCell(current.key, selection.language, suggestion); setSuggestion(""); }}><Check size={14} />{t.applySuggestion}</Button>
@@ -855,9 +995,8 @@ export function App() {
           <section className="stats">
             <div className="panel-heading"><span>{t.completion}</span><button className="link" onClick={() => setModal("files")}>{t.renameColumns}</button></div>
             {project.columnOrder.map((language) => {
-              const done = project.entries.filter((entry) => entry.translations[language]?.value.trim()).length;
-              const percentage = project.entries.length ? Math.round((done / project.entries.length) * 100) : 0;
-              return <div className="stat" key={language}><div><span>{project.columnLabels[language] ?? language}</span><b>{percentage}%</b></div><div className="progress"><i style={{ width: `${percentage}%` }} /></div><small>{done} / {project.entries.length} {t.translated}</small></div>;
+              const { translated, total, completion } = stats.languages[language];
+              return <div className="stat" key={language}><div><span>{project.columnLabels[language] ?? language}</span><b>{completion}%</b></div><div className="progress"><i style={{ width: `${completion}%` }} /></div><small>{translated} / {total} {t.translated}</small></div>;
             })}
             <div className="tag-summary"><span><Hash size={12} />{t.tags}</span>{tagCounts.map(([tag, count]) => <small key={tag}>{tag} <b>{count}</b></small>)}</div>
           </section>
@@ -890,6 +1029,13 @@ export function App() {
         <label>{t.optionalKeyColumn}<input value={csvDraft.keyColumn} onChange={(event) => setCsvDraft({ ...csvDraft, keyColumn: event.target.value })} /></label>
         <label>{t.languageColumns}<input value={csvDraft.languages} onChange={(event) => setCsvDraft({ ...csvDraft, languages: event.target.value })} /></label>
         <Button variant="primary" onClick={applyCsvMapping}>{t.applyMapping}</Button>
+      </div></ModalFrame> : null}
+      {modal === "diagnostics" ? <ModalFrame title={t.diagnostics} close={() => setModal(null)}><div className="form-grid diagnostic-log">
+        <textarea readOnly value={diagnosticReport()} />
+        <div className="diagnostic-actions">
+          <Button variant="soft" onClick={() => setDiagnostics([])}>{t.clearDiagnostics}</Button>
+          <Button variant="primary" onClick={copyDiagnostics}>{t.copyDiagnostics}</Button>
+        </div>
       </div></ModalFrame> : null}
     </main>
   );

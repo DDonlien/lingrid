@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { defaultCsvMapping, parseCsv, updateCsv } from "../src/adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../src/adapters/po";
-import { writeBrowserFile } from "../src/core/browser-files";
-import { adjacentCell, canImportSourceTypes, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../src/core/project";
+import { verifyBrowserFileWritable, writeBrowserFile } from "../src/core/browser-files";
+import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../src/core/project";
 import type { LingridProject, SourceDocument, TranslationEntry } from "../src/core/types";
 
 function fixture(name: string): string {
@@ -13,6 +13,11 @@ function fixture(name: string): string {
 function po(name: string): SourceDocument {
   const raw = fixture(name);
   return { id: name, path: name, name, raw, type: "po", language: detectPoLanguage(raw, name), writable: true };
+}
+
+function inlinePo(language: string, entries: Array<{ source: string; value: string; comment?: string }>): SourceDocument {
+  const raw = [`msgid ""\nmsgstr ""\n"Language: ${language}\\n"`, ...entries.map((entry) => `${entry.comment ? `#. ${entry.comment}\n` : ""}msgid "${entry.source}"\nmsgstr "${entry.value}"`)].join("\n\n");
+  return { id: language, path: `${language}/GAME.po`, name: "GAME.po", raw, type: "po", language, writable: true };
 }
 
 describe("PO adapter", () => {
@@ -67,6 +72,20 @@ describe("PO adapter", () => {
     const document: SourceDocument = { id: "pot", path: "template.pot", name: "template.pot", raw, type: "pot", writable: false };
     expect(updatePo(document, [])).toBe(raw);
   });
+
+  it("appends a full PO block when force-filling an entry missing from the target language", () => {
+    const zh = inlinePo("zh-CN", [{ source: "Shared", value: "共享" }]);
+    const ja = inlinePo("ja", [{ source: "Shared", value: "共有" }, { source: "Only in ja", value: "日本語のみ", comment: "Keep this metadata" }]);
+    const entries = mergeEntries(parsePo(zh), parsePo(ja));
+    const missing = entries.find((entry) => !entry.translations["zh-CN"]);
+    expect(missing).toBeDefined();
+    missing!.translations["zh-CN"] = { value: "强制补齐", changed: true };
+    const output = updatePo(zh, entries);
+    expect(output).toContain(`msgid "${missing!.source}"`);
+    expect(output).toContain('msgstr "强制补齐"');
+    expect(output).toContain("#. Keep this metadata");
+    expect(parsePo({ ...zh, raw: output }).find((entry) => entry.key === missing!.key)?.translations["zh-CN"].value).toBe("强制补齐");
+  });
 });
 
 describe("CSV adapter", () => {
@@ -105,10 +124,24 @@ describe("Browser source saving", () => {
 
   it("requests readwrite permission and verifies the persisted browser file", async () => {
     const file = fileHandle();
-    await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po")).resolves.toBe(2);
+    const events: string[] = [];
+    await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po", (event) => events.push(event))).resolves.toBe(2);
     expect(file.queryPermission).toHaveBeenCalledWith({ mode: "readwrite" });
     expect(file.requestPermission).toHaveBeenCalledWith({ mode: "readwrite" });
     expect(file.content()).toBe("after");
+    expect(events).toEqual([
+      "write.start",
+      "write.preflight.start",
+      "write.permission.queried",
+      "write.permission.requested",
+      "write.preflight.file",
+      "write.preflight.success",
+      "write.createWritable.start",
+      "write.createWritable.success",
+      "write.content.success",
+      "write.close.success",
+      "write.verify.readback",
+    ]);
   });
 
   it("reports denied browser write permission instead of pretending to save", async () => {
@@ -122,9 +155,24 @@ describe("Browser source saving", () => {
     await expect(writeBrowserFile(file.handle, "after", 1, "GAME.po")).rejects.toThrow("File write verification failed: GAME.po");
     expect(file.requestPermission).not.toHaveBeenCalled();
   });
+
+  it("preflights browser file permission and external modifications before writing", async () => {
+    const file = fileHandle();
+    await expect(verifyBrowserFileWritable(file.handle, 1, "GAME.po")).resolves.toBeUndefined();
+    expect(file.content()).toBe("before");
+    await expect(verifyBrowserFileWritable(file.handle, 99, "GAME.po")).rejects.toThrow("File changed outside Lingrid: GAME.po");
+    expect(file.content()).toBe("before");
+  });
 });
 
 describe("Project state", () => {
+  it("applies a focused cell draft before save or save-as serialization", () => {
+    const entries = parsePo(po("zh-CN.po"));
+    const drafted = applyTranslationDrafts(entries, ["zh-CN"], { [`${entries[0].key}\u0001zh-CN`]: "草稿译文" });
+    expect(drafted[0].translations["zh-CN"]).toEqual({ value: "草稿译文", changed: true });
+    expect(updatePo(po("zh-CN.po"), drafted)).toContain('msgstr "草稿译文"');
+  });
+
   it("cycles translation sort modes and keeps empty values last for content sorting", () => {
     const entries = [
       { key: "b", source: "B", translations: { ja: { value: "Beta", changed: false } }, tags: [] },
@@ -195,10 +243,61 @@ describe("Project state", () => {
     const document = po("zh-CN.po");
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
-    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, columnWidths: { "zh-CN": 240 }, view: { search: "", completion: "all", completionLanguages: [], changedOnly: false, tags: [] } });
+    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, columnWidths: { "zh-CN": 240 }, view: { search: "", completion: "all", completionLanguages: [], changedOnly: false, tags: [], wordTags: [], wordTagLanguages: [] } });
     expect(output).toContain('"#ui"');
     expect(output).toContain('"zh-CN": 240');
     expect(output).not.toContain("开始游戏");
+    expect(output).not.toContain('"view"');
+  });
+
+  it("does not persist transient search, filter or force-fill view state", () => {
+    const project = createProject();
+    project.view = { search: "menu", completion: "incomplete", completionLanguages: ["zh-CN"], changedOnly: true, tags: ["#ui"], wordTags: ["#todo"], wordTagLanguages: ["zh-CN"], forceMissingCells: true, sort: { language: "zh-CN", mode: "content-asc" } };
+    expect(JSON.parse(serializeProject(project))).not.toHaveProperty("view");
+  });
+
+  it("stores word tags per language cell in project JSON without writing them into PO", () => {
+    const document = po("zh-CN.po");
+    const entries = parsePo(document);
+    entries[0].translations["zh-CN"].tags = ["#review"];
+    const project = createProject();
+    project.documents = [document];
+    project.entries = entries;
+    const output = serializeProject(project);
+    expect(output).toContain('"wordTags"');
+    expect(output).toContain('"#review"');
+    expect(updatePo(document, entries)).not.toContain("#review");
+  });
+
+  it("filters word tags within the selected language scope", () => {
+    const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
+    entries[0].translations["zh-CN"].tags = ["#review"];
+    entries[1].translations.ja.tags = ["#review"];
+    const project = createProject();
+    project.entries = entries;
+    project.columnOrder = ["zh-CN", "ja"];
+    project.view.wordTags = ["#review"];
+    project.view.wordTagLanguages = ["zh-CN"];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Start Game"]);
+    project.view.wordTagLanguages = ["ja"];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+  });
+
+  it("filters empty source tags and empty word tags", () => {
+    const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
+    entries[0].tags = ["#ui"];
+    entries[0].translations["zh-CN"].tags = ["#review"];
+    const project = createProject();
+    project.entries = entries;
+    project.columnOrder = ["zh-CN", "ja"];
+    project.view.tags = [EMPTY_TAG_FILTER];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    project.view.tags = [];
+    project.view.wordTags = [EMPTY_TAG_FILTER];
+    project.view.wordTagLanguages = ["zh-CN"];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    project.view.wordTags = ["#review", EMPTY_TAG_FILTER];
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Start Game", "Continue"]);
   });
 
   it("filters source, translations, tags and changed cells", () => {
@@ -206,16 +305,29 @@ describe("Project state", () => {
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
     entries[0].translations["zh-CN"].changed = true;
-    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], changedOnly: true, tags: ["#ui"] } };
+    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], changedOnly: true, tags: ["#ui"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project)).toHaveLength(1);
-    expect(projectStats(project)).toEqual({ total: 2, languages: { "zh-CN": { translated: 1, missing: 1, completion: 50 } }, tags: { "#ui": 1 }, changed: 1 });
+    expect(projectStats(project)).toEqual({ total: 2, languages: { "zh-CN": { translated: 1, missing: 1, total: 2, completion: 50 } }, tags: { "#ui": 1 }, changed: 1 });
+  });
+
+  it("excludes matrix-only language gaps from completion statistics and filters until force-fill is enabled", () => {
+    const entries = mergeEntries(
+      parsePo(inlinePo("zh-CN", [{ source: "Shared", value: "共享" }, { source: "Missing translation", value: "" }])),
+      parsePo(inlinePo("ja", [{ source: "Shared", value: "共有" }, { source: "Missing translation", value: "不足" }, { source: "Only in ja", value: "日本語のみ" }])),
+    );
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["zh-CN"], changedOnly: false, tags: [], wordTags: [], wordTagLanguages: [] } };
+    expect(projectStats(project).languages["zh-CN"].total).toBe(2);
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Missing translation"]);
+    project.view.forceMissingCells = true;
+    expect(projectStats(project).languages["zh-CN"].total).toBe(3);
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Missing translation", "Only in ja"]);
   });
 
   it("filters completion by selected languages and matches any selected tag", () => {
     const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
     entries[0].tags = ["#ui"];
     entries[1].tags = ["#review"];
-    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], changedOnly: false, tags: ["#ui", "#review"] } };
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], changedOnly: false, tags: ["#ui", "#review"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
     project.view.completionLanguages = ["zh-CN"];
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
@@ -230,6 +342,9 @@ describe("Project state", () => {
       completionLanguages: [],
       changedOnly: false,
       tags: ["#ui"],
+      wordTags: [],
+      wordTagLanguages: [],
+      forceMissingCells: false,
     });
   });
 });

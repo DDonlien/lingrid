@@ -3,6 +3,7 @@ export type DocumentType = "po" | "pot" | "csv";
 export interface TranslationCell {
   value: string;
   changed: boolean;
+  tags?: string[];
 }
 
 export interface TranslationEntry {
@@ -11,6 +12,7 @@ export interface TranslationEntry {
   sourceChanged?: boolean;
   context?: string;
   plural?: string;
+  poTemplateRaw?: string;
   translations: Record<string, TranslationCell>;
   tags: string[];
 }
@@ -40,6 +42,9 @@ export interface ProjectView {
   completionLanguages: string[];
   changedOnly: boolean;
   tags: string[];
+  wordTags: string[];
+  wordTagLanguages: string[];
+  forceMissingCells?: boolean;
   sort?: {
     language: string;
     mode: TranslationSortMode;

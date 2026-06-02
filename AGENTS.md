@@ -170,12 +170,15 @@
 - 语言与命名：默认中文文档；代码、类型、字段、文件格式、API 名称使用英文。产品中文名为 `Lingrid 灵译`，英文名为 `Lingrid`。
 - 产品原则：并排编辑是第一优先；文件保存可靠性高于功能数量；项目保持轻量，本地优先，不做 SaaS 化协作平台。
 - Phase 1（v0.1）范围：支持 `.po` / `.csv` 作为可编辑原文件输入，支持 `.pot` 作为只读 source/template 输入；不做 Excel；不做术语库；不做复杂项目管理；不做复杂 QA；不做翻译记忆；不做 Git 集成。
-- 文件原则：翻译正文以原 `.po` / `.csv` 为主，项目 JSON 只保存项目状态，例如打开的文件、语言列顺序、tag、视图状态、CSV 列映射等。不要把项目 JSON 当作主要翻译数据库。
+- 文件原则：翻译正文以原 `.po` / `.csv` 为主，项目 JSON 只保存项目级状态，例如打开的文件、语言列顺序、tag、列宽、CSV 列映射等。搜索、筛选、排序和强制补齐开关只属于当前会话，不写入项目 JSON。不要把项目 JSON 当作主要翻译数据库。
+- Tag 原则：Source Tag 绑定 source entry 并由所有语言共享；Word Tag 绑定具体语言单元格。两者保存在项目 JSON，默认不写入 `.po` 或 `.csv` 正文。
 - PO 原则：内部定位必须保留 `msgctxt`、`msgid`、`msgid_plural` 等信息；UI 中只有当 context/key 真实存在或用户启用时才显示，避免总显示空列。
 - PO 保真原则：矩阵只是 PO 文档的 UI 投影。读取和保存时必须保留 plural、comments、references、flags、previous source 和 obsolete entries 等未必直接展示的结构，并尽量保持 entry 顺序和稳定格式，避免制造无意义 diff。
+- PO 错位原则：多语言 PO 条目集合允许不完全一致。矩阵展示并集，但目标语言文件中不存在的单元格默认不可编辑且不参与该语言统计和筛选；仅在用户显式开启强制补齐时，才允许克隆已有完整 PO block 并追加到目标语言文件。
 - POT 原则：`.pot` 只作为 source/template 使用，默认不写入译文，主保存流程不得覆盖 `.pot`。
 - CSV 原则：Phase 1（v0.1）不尝试兼容所有翻译表结构；导入时通过用户映射 source 列、语言列和可选 id/key 列确定含义。
 - 保存原则：主保存按钮应保存已修改的 `.po` / `.csv` 源文件；另设保存项目按钮；另设项目另存和当前 PO 另存。
+- 浏览器保存降级原则：支持 File System Access API 时直接覆盖已授权源文件；浏览器无法提供可写文件句柄时，主保存可以下载更新副本，但必须明确提示原文件未覆盖，并保留未保存状态。
 - 架构限制：Renderer 不直接访问 Node 文件系统；文件读写通过 main/preload 暴露的受控 API；格式解析通过 adapter 层抽象，避免 UI 与具体格式耦合。
 - AI/API 原则：Phase 1（v0.1）只做简单建议流；允许自定义 API endpoint、key、model 和 prompt；点击当前单元格生成建议，用户确认后应用；不要自动覆盖已有译文。
 - 授权与引用边界：可以参考 Poedit、Lokalize、Weblate、gettext-parser、jsgettext 等开源项目的产品思路、数据模型和边界处理方式；不得直接复制不兼容许可代码或大段实现。

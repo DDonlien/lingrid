@@ -33,6 +33,17 @@ function replaceField(raw: string, field: string, value: string): string {
   return pattern.test(raw) ? raw.replace(pattern, `${field} "${encoded}"`) : `${raw}\n${field} "${encoded}"`;
 }
 
+function replaceTranslationFields(raw: string, value: string): string {
+  let wrotePrimary = false;
+  const output = raw.replace(/^msgstr(?:\[(\d+)\])?\s+".*"(?:\r?\n".*")*/gm, (match, index: string | undefined) => {
+    const primary = index === undefined || index === "0";
+    if (primary) wrotePrimary = true;
+    const field = index === undefined ? "msgstr" : `msgstr[${index}]`;
+    return `${field} "${primary ? encodeQuoted(value) : ""}"`;
+  });
+  return wrotePrimary ? output : `${output}\nmsgstr "${encodeQuoted(value)}"`;
+}
+
 function fieldValue(lines: string[], field: string): string | undefined {
   const index = lines.findIndex((line) => line.startsWith(`${field} `));
   if (index < 0) return undefined;
@@ -87,6 +98,7 @@ export function parsePo(document: SourceDocument): TranslationEntry[] {
       source: block.source ?? "",
       context: block.context,
       plural: block.plural,
+      poTemplateRaw: block.raw,
       translations:
         document.type === "pot"
           ? {}
@@ -102,10 +114,13 @@ export function updatePo(
   if (!document.language || !document.writable) return document.raw;
   const language = document.language;
   const byKey = new Map(entries.map((entry) => [entry.key, entry]));
-  return blocks(document.raw)
+  const originalKeys = new Set<string>();
+  const output = blocks(document.raw)
     .map((block) => {
       if (!block.source) return block.raw;
-      const entry = byKey.get(stableKey(block.context, block.source, block.plural));
+      const key = stableKey(block.context, block.source, block.plural);
+      originalKeys.add(key);
+      const entry = byKey.get(key);
       const cell = entry?.translations[language];
       if (!cell?.changed && !entry?.sourceChanged) return block.raw;
       let output = block.raw;
@@ -116,4 +131,14 @@ export function updatePo(
       return replaceField(output, "msgstr", cell.value);
     })
     .join("\n\n");
+  const additions = entries.flatMap((entry) => {
+    const cell = entry.translations[language];
+    if (!cell?.changed || originalKeys.has(entry.key)) return [];
+    const raw = entry.poTemplateRaw ??
+      [entry.context ? `msgctxt "${encodeQuoted(entry.context)}"` : "", `msgid "${encodeQuoted(entry.source)}"`, entry.plural ? `msgid_plural "${encodeQuoted(entry.plural)}"` : "", 'msgstr ""']
+        .filter(Boolean)
+        .join("\n");
+    return [replaceTranslationFields(raw, cell.value)];
+  });
+  return additions.length ? `${output}\n\n${additions.join("\n\n")}` : output;
 }
