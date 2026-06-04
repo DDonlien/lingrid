@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { defaultCsvMapping, parseCsv, updateCsv } from "../src/adapters/csv";
-import { detectPoLanguage, parsePo, updatePo } from "../src/adapters/po";
-import { verifyBrowserFileWritable, writeBrowserFile } from "../src/core/browser-files";
-import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../src/core/project";
-import type { LingridProject, SourceDocument, TranslationEntry } from "../src/core/types";
+import { defaultCsvMapping, parseCsv, updateCsv } from "../adapters/csv";
+import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
+import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
+import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, moveColumn, nextSortMode, normalizeProjectView, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
+import type { LingridProject, SourceDocument, TranslationEntry } from "../core/types";
 
 function fixture(name: string): string {
-  return readFileSync(new URL(`../fixtures/${name}`, import.meta.url), "utf8");
+  return readFileSync(new URL(`../../fixtures/${name}`, import.meta.url), "utf8");
 }
 
 function po(name: string): SourceDocument {

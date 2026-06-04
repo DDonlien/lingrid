@@ -357,10 +357,10 @@
 
 - [ ] [BACK-A-001] 支持 Excel 导入导出 #P2
 - [ ] [BACK-A-002] 支持术语库 #P2
-- [ ] [BACK-A-009] 完成 Electron 桌面封装与安装包发布 #P2
-  - [ ] 定义桌面安装包构建命令
-  - [ ] 验证桌面文件对话框、受控读写和项目恢复
-  - [ ] 定义桌面版本发布流程
+- [x] [BACK-A-009] 完成 Electron 桌面封装与安装包发布 #P2
+  - [x] 定义桌面安装包构建命令：`npm run package:electron` 与 `npm run dist:electron`
+  - [x] 验证桌面文件对话框、受控读写和项目恢复：已通过 Electron main/preload 受控 API 编译与 unpacked 应用打包验证，实际交互可用 `npm run dev:electron` 或 `release/mac-arm64/Lingrid.app` 复测
+  - [x] 定义桌面版本发布流程：先运行 `npm test`、`npm run build`，再运行 `npm run dist:electron` 生成 `release/` 产物；正式 macOS 发布前补充图标、Developer ID 证书和 notarization 配置
 - [ ] [BACK-A-003] 支持翻译记忆 #P3
 - [ ] [BACK-A-004] 支持更复杂 QA 检查 #P3
 - [ ] [BACK-A-005] 支持 plural forms 高级编辑 #P3

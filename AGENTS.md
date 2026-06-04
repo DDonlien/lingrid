@@ -129,7 +129,7 @@
 - 项目名称：Lingrid 灵译
 - 产品简介：轻量、现代、本地优先的 PO / CSV 多语言并排编辑器。核心界面以矩阵方式同时查看和编辑一个 source 对应的多语言译文。
 - 主要用户：独立游戏开发者、小型软件团队、本地化外包协作者、需要在 PO 与 CSV 之间整理翻译内容的开发者。
-- 当前阶段：Phase 1（v0.1）可运行原型；已实现 `.po` / `.csv` 原文件输入、矩阵编辑、直接保存回源文件、项目 JSON 状态保存，以及 P1 AI 建议和批量替换。
+- 当前阶段：Phase 1（v0.1）可运行原型；已实现 `.po` / `.csv` 原文件输入、矩阵编辑、直接保存回源文件、项目 JSON 状态保存、P1 AI 建议和批量替换，并完成 P2 Electron 桌面封装命令。
 
 ### 技术栈与命令
 
@@ -138,7 +138,7 @@
 - 测试命令：`npm test`。
 - 构建命令：`npm run build`。
 - 浏览器版本发布：推送 `main` 后由 GitHub Actions 自动部署 GitHub Pages。
-- Electron 安装包发布：Phase 2（P2）封装阶段再定义。
+- Electron 安装包发布：`npm run package:electron` 生成本机 unpacked 应用，`npm run dist:electron` 生成平台安装/分发产物到 `release/`。
 
 ### 文档入口
 
@@ -150,14 +150,16 @@
 ### 目录索引
 
 - 根目录：项目文档、配置文件和应用入口。
-- `src/`：TypeScript / React / Electron 源码。
-- `src/main/`：Electron main process；负责窗口、系统菜单、原生文件对话框、安全文件读写和安全存储。
-- `src/preload/`：Electron preload；只暴露经过定义的安全 API。
-- `src/renderer/`：React UI；矩阵编辑器、详情编辑器、设置与统计界面。
-- `src/core/`：与 UI 解耦的核心逻辑；PO/CSV adapter、矩阵合并、changed tracking、tag、搜索筛选、统计、批处理。
-- `src/adapters/`：文件格式 adapter；Phase 1（v0.1）要求 `.po` / `.csv` 作为可编辑原文件输入，`.pot` 作为只读 source/template 输入。
-- `src/components/`：shadcn/ui 派生组件和项目专用组件。
-- `tests/`：核心逻辑与文件读写测试。
+- `ts/`：TypeScript / React 源码与测试。
+- `ts/tsconfig.json` 与 `ts/vite.config.ts`：浏览器/React/测试侧 TypeScript 与 Vite 配置。
+- `ts/renderer/`：React UI；矩阵编辑器、详情编辑器、设置与统计界面。
+- `ts/core/`：与 UI 解耦的核心逻辑；PO/CSV adapter、矩阵合并、changed tracking、tag、搜索筛选、统计、批处理。
+- `ts/adapters/`：文件格式 adapter；Phase 1（v0.1）要求 `.po` / `.csv` 作为可编辑原文件输入，`.pot` 作为只读 source/template 输入。
+- `ts/tests/`：核心逻辑与文件读写测试。
+- `electron/`：Electron 桌面入口。
+- `electron/tsconfig.json`：Electron main/preload 编译配置。
+- `electron/main/`：Electron main process；负责窗口、系统菜单、原生文件对话框、安全文件读写和安全存储。
+- `electron/preload/`：Electron preload；只暴露经过定义的安全 API。
 - `fixtures/`：PO/POT/CSV 示例文件，不放真实商业项目内容。
 - `agent-log/`：AI 执行日志。
 

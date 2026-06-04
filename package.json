@@ -1,17 +1,55 @@
 {
   "name": "lingrid",
   "version": "0.1.0",
+  "description": "Lightweight local-first PO/CSV multilingual matrix editor.",
+  "author": "ddonlien",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:electron": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
-    "build": "tsc -b && vite build && tsc -p tsconfig.electron.json",
+    "dev": "vite --config ts/vite.config.ts",
+    "dev:electron": "npm run build:electron && concurrently -k \"npm run dev\" \"wait-on tcp:5173 && electron .\"",
+    "build:app": "tsc -b ts/tsconfig.json && vite build --config ts/vite.config.ts",
+    "build:electron": "tsc -p electron/tsconfig.json",
+    "build": "npm run build:app && npm run build:electron",
+    "package:electron": "npm run build && electron-builder --dir",
+    "dist:electron": "npm run build && electron-builder",
     "test": "vitest run",
     "test:watch": "vitest",
     "electron": "electron ."
   },
   "main": "dist-electron/main/main.js",
+  "build": {
+    "appId": "dev.lingrid.app",
+    "productName": "Lingrid",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Development"
+    }
+  },
   "dependencies": {
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
@@ -24,6 +62,7 @@
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^9.2.1",
     "electron": "^41.7.1",
+    "electron-builder": "^26.8.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.14",
     "vitest": "^4.1.7",

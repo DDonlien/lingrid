@@ -20,7 +20,7 @@ function createWindow() {
   });
   const devUrl = process.env.VITE_DEV_SERVER_URL ?? "http://localhost:5173";
   if (!app.isPackaged) void window.loadURL(devUrl);
-  else void window.loadFile(join(currentDir, "../dist/index.html"));
+  else void window.loadFile(join(currentDir, "../../dist/index.html"));
 }
 
 ipcMain.handle("files:open", async (_event, extensions: string[]) => {
