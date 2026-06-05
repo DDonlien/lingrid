@@ -127,7 +127,17 @@ Phase 1（v0.1）可先以浅色模式为主，但样式应兼容 shadcn/ui 的 
 
 ## 图标与图像
 
-- 图标风格：使用 lucide-react 或 shadcn 常见搭配；线性、简洁、统一 stroke。
+- 应用图标（brand logo）：一个 L 形主体 + 右下 2×2 矩阵点，L 形从紫色渐变到青绿色，背景为深紫（`#1F1742` 一类）。
+  - 含义：L 取自 Lingrid；矩阵点呼应“多语言 × 多 entry”的矩阵视图。
+  - 应用图标统一使用 PNG；正式打包时由 electron-builder 自动生成 macOS `.icns` 和 Windows `.ico`。
+  - 资源位置：
+    - `assets/icon-source.png`：原始 1254x1254 源图，重新生成所有尺寸的 source of truth。
+    - `assets/icon-{16,32,48,64,128,180,192,256,512,1024}.png`：常用尺寸。
+    - `public/favicon.ico`：浏览器多尺寸 .ico（16/32/48/64/128/256）。
+    - `public/favicon-16.png`、`public/favicon-32.png`、`public/apple-touch-icon.png`、`public/icon-192.png`、`public/icon-512.png`：浏览器 favicon 集合。
+    - `public/site.webmanifest`：PWA / 安装元数据，背景色与图标主背景一致。
+  - 重新生成或调整品牌时：修改 `assets/icon-source.png`，再由 `sips` 缩放各尺寸；`favicon.ico` 由 PIL 从 `icon-{16,32,48,64,128,256}.png` 拼合。
+- UI 图标风格：使用 lucide-react 或 shadcn 常见搭配；线性、简洁、统一 stroke。
 - 插图风格：Phase 1（v0.1）尽量不使用插图；空状态可以使用简单图标和短文案。
 - 图片裁切：不适用。
 - 空状态：强调下一步操作，例如“Open PO or Import CSV”。

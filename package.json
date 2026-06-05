@@ -24,6 +24,7 @@
     "directories": {
       "output": "release"
     },
+    "icon": "assets/icon-1024.png",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",

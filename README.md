@@ -1,5 +1,7 @@
 # Lingrid 灵译
 
+![Lingrid 灵译 logo](assets/icon-128.png)
+
 Lingrid 灵译是一个轻量、现代、本地优先的 PO / CSV 多语言并排编辑器。
 
 它的核心目标不是复制传统单语言 PO 编辑器，而是把多个语言文件导入同一个窗口，用矩阵方式同时查看、搜索、编辑和保存一个 source 对应的多语言译文。
@@ -80,6 +82,15 @@ Phase 1（v0.1）暂不做：
 ├── REQUIREMENTS.md
 ├── DESIGN.md
 ├── agent-log/
+├── assets/                 # 品牌与图标源资源
+│   ├── icon-source.png     # 原始 1254x1254 源图
+│   └── icon-{16,32,48,64,128,180,192,256,512,1024}.png
+├── public/                 # 浏览器静态资源（Vite 原样 copy 到 dist/）
+│   ├── favicon.ico
+│   ├── favicon-{16,32}.png
+│   ├── apple-touch-icon.png
+│   ├── icon-{192,512}.png
+│   └── site.webmanifest
 ├── fixtures/
 ├── ts/
 │   ├── tsconfig.json
@@ -137,7 +148,7 @@ npm run package:electron
 npm run dist:electron
 ```
 
-`package:electron` 会生成本机 unpacked 应用，适合本地验收桌面文件对话框、受控读写和项目恢复；`dist:electron` 会按当前平台生成安装/分发产物，输出到 `release/`。正式 macOS 发布前仍需要补充应用图标、Developer ID 证书与 notarization 配置。
+`package:electron` 会生成本机 unpacked 应用，适合本地验收桌面文件对话框、受控读写和项目恢复；`dist:electron` 会按当前平台生成安装/分发产物，输出到 `release/`。桌面应用图标已配齐（参见 `assets/icon-source.png` 与 `package.json` 的 `build.icon`），正式 macOS 发布前仍需要补充 Developer ID 证书与 notarization 配置。
 
 运行验证：
 

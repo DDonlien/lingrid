@@ -65,9 +65,13 @@ export interface LingridProject {
   projectFileHandle?: FileSystemFileHandle;
 }
 
+export type AiProvider = "openai-compatible" | "deepl";
+
 export interface AiSettings {
+  provider: AiProvider;
   endpoint: string;
   apiKey: string;
   model: string;
   prompt: string;
+  deeplRegion: "free" | "pro";
 }

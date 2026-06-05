@@ -284,6 +284,23 @@
   - [x] [AI-A-007] 用户点击后应用建议到当前单元格
   - [x] [AI-A-008] 不自动覆盖已有译文
   - [x] [AI-A-009] API key 不写入日志
+  - [x] [AI-A-010] strip reasoning 标签：reasoning 类模型（MiniMax-M2.7、DeepSeek-R1、o1/o3 等）的 `choices[0].message.content` 会包含 `<think>...</think>` 段落，应用前必须 strip，否则会污染 cell 与 `.po` 写入
+    - [x] `ts/renderer/providers/openai-compatible.ts` 暴露 `stripThinkTags` 纯函数
+    - [x] `generateSuggestion` 走 OpenAI 兼容 provider 时调用 strip，结果再 setSuggestion
+    - [x] strip 命中时通过 `appendDiagnostic("ai.stripped_think", ...)` 留痕，不记录译文
+    - [x] `ts/tests/providers.test.ts` 覆盖：单 think 块 / 多 think 块 / 无 think / 全 think fallback / 全空白
+  - [x] [AI-A-011] 支持 provider 切换 #feature #P1
+    - [x] `AiSettings` 加 `provider: "openai-compatible" | "deepl"` 字段
+    - [x] AI 设置 Modal 顶部加 provider radio：`OpenAI 兼容 | DeepL`
+    - [x] 切换 provider 时自动切显示字段：DeepL 模式隐藏 model 与 prompt
+    - [x] DeepL 模式显示 region 选择（免费版 / 专业版），切换时自动填 endpoint
+    - [x] `generateSuggestion` 按 provider 分发到对应适配器
+    - [x] 保持现状：`apiKey` 仍只活在浏览器内存，不写入项目 JSON
+  - [x] [AI-A-012] DeepL provider #feature #P1
+    - [x] `ts/renderer/providers/deepl.ts` 实现 DeepL `/v2/translate` 协议：form-urlencoded、`DeepL-Auth-Key` header、响应 `{ translations: [{ detected_source_language, text }] }`
+    - [x] `toDeepLTargetLanguage` 映射常见 PO 语言代码到 DeepL 期望大写（zh-CN→ZH-HANS、en-GB→EN-GB、pt-BR→PT-BR 等）
+    - [x] `requestDeepLTranslation` 返回 `{ text, detectedSource? }`
+    - [x] `ts/tests/providers.test.ts` 覆盖 DeepL 语言代码映射（zh / ja / en / pt / 大小写 / 空白 / 未知 fallback）
 
 ### BATCH-A：轻量批处理
 
@@ -360,13 +377,28 @@
 - [x] [BACK-A-009] 完成 Electron 桌面封装与安装包发布 #P2
   - [x] 定义桌面安装包构建命令：`npm run package:electron` 与 `npm run dist:electron`
   - [x] 验证桌面文件对话框、受控读写和项目恢复：已通过 Electron main/preload 受控 API 编译与 unpacked 应用打包验证，实际交互可用 `npm run dev:electron` 或 `release/mac-arm64/Lingrid.app` 复测
-  - [x] 定义桌面版本发布流程：先运行 `npm test`、`npm run build`，再运行 `npm run dist:electron` 生成 `release/` 产物；正式 macOS 发布前补充图标、Developer ID 证书和 notarization 配置
+  - [x] 定义桌面版本发布流程：先运行 `npm test`、`npm run build`，再运行 `npm run dist:electron` 生成 `release/` 产物
+  - [x] 补充应用图标：原始 1254x1254 源图存于 `assets/icon-source.png`，`assets/icon-{16,32,48,64,128,180,192,256,512,1024}.png` 覆盖常用尺寸，`package.json` 的 `build.icon` 指向 1024 版本，electron-builder 自动为各平台生成 .icns / .ico
+  - [ ] 补充 Developer ID 证书与 notarization 配置（macOS 正式发布前）
 - [ ] [BACK-A-003] 支持翻译记忆 #P3
 - [ ] [BACK-A-004] 支持更复杂 QA 检查 #P3
 - [ ] [BACK-A-005] 支持 plural forms 高级编辑 #P3
 - [ ] [BACK-A-006] 支持 Git diff / 外部修改对比 #P3
 - [ ] [BACK-A-007] 支持 JSON / i18next / XLIFF 等更多格式 #P3
 - [ ] [BACK-A-008] 支持批量 AI 建议 #P2
+
+### BRAND-A：品牌与图标资产
+
+- [x] [BRAND-A-001] 落地应用图标与浏览器 favicon #brand #P1
+  - [x] 保留原始源图（1254x1254 PNG）于 `assets/icon-source.png`，作为以后重新生成所有尺寸的 source of truth
+  - [x] 落地常用 PNG 尺寸到 `assets/`，覆盖 16 / 32 / 48 / 64 / 128 / 180 / 192 / 256 / 512 / 1024
+  - [x] 浏览器 favicon 资源放到 `public/`，让 Vite 原样 copy 到 dist/
+  - [x] 拼合多尺寸 `public/favicon.ico`（含 16 / 32 / 48 / 64 / 128 / 256）
+  - [x] 提供 `public/apple-touch-icon.png`（180x180）和 `public/site.webmanifest`
+  - [x] `index.html` 引入 favicon / apple-touch-icon / manifest / theme-color / description
+  - [x] `package.json` 的 `build.icon` 指向 `assets/icon-1024.png`，electron-builder 自动生成 macOS .icns 与 Windows .ico
+  - [x] README 与 DESIGN 引用图标资源位置
+  - [ ] 替换未来 DESIGN 改版时的旧 logo；旧 logo 归档到 `archive/brand/`
 
 ### RELEASE-A：浏览器版本发布
 

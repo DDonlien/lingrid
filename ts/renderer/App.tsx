@@ -25,7 +25,9 @@ import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapter
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
 import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
 import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
-import type { AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
+import type { AiProvider, AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
+import { DEEPL_ENDPOINTS, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
+import { requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
 import { createDemoProject } from "./demo";
 
 type Modal = "ai" | "batch" | "files" | "csv" | "diagnostics" | null;
@@ -50,6 +52,7 @@ const DEFAULT_LANGUAGE_WIDTH = 175;
 const MIN_COLUMN_WIDTH = 96;
 const MAX_COLUMN_WIDTH = 640;
 const UI_LANGUAGE_KEY = "lingrid-ui-language";
+const AI_SETTINGS_KEY = "lingrid-ai-settings";
 const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
@@ -65,7 +68,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
-    aiSuggestionSettings: "AI 建议设置", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", done: "完成",
+    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerDeepl: "DeepL", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
@@ -81,7 +84,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
-    aiSuggestionSettings: "AI 提案設定", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", done: "完了",
+    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerDeepl: "DeepL", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
@@ -97,7 +100,7 @@ const UI_TEXT = {
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
-    aiSuggestionSettings: "AI suggestion settings", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", done: "Done",
+    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerDeepl: "DeepL", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
@@ -105,12 +108,40 @@ const UI_TEXT = {
     forceMissingCells: "Force Missing Entries", unavailableCell: "This entry does not exist in the source file",
   },
 } as const;
-const AI_DEFAULT: AiSettings = {
+export const AI_DEFAULT: AiSettings = {
+  provider: "openai-compatible",
   endpoint: "",
   apiKey: "",
   model: "",
-  prompt: "Translate the following source text into {{language}}. Return only the translation:\\n\\n{{source}}",
+  prompt: "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}",
+  deeplRegion: "free",
 };
+
+// Persist AI settings (including the API key) to localStorage so the user only
+// configures once per browser. Stored as plaintext — acceptable for a local-only
+// tool but the user should clear the key on a shared device.
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export function loadAiSettings(storage: StorageLike = window.localStorage): AiSettings {
+  try {
+    const raw = storage.getItem(AI_SETTINGS_KEY);
+    if (!raw) return AI_DEFAULT;
+    const parsed = JSON.parse(raw) as Partial<AiSettings>;
+    // Merge over defaults so older stored entries missing new fields keep working.
+    return { ...AI_DEFAULT, ...parsed };
+  } catch {
+    return AI_DEFAULT;
+  }
+}
+
+export function saveAiSettings(ai: AiSettings, storage: StorageLike = window.localStorage): void {
+  try {
+    storage.setItem(AI_SETTINGS_KEY, JSON.stringify(ai));
+  } catch {
+    // localStorage may be full or disabled (private mode). Silently skip — the
+    // user just won't have their settings remembered next time.
+  }
+}
 
 function documentType(name: string): SourceDocument["type"] {
   if (/\.pot$/i.test(name)) return "pot";
@@ -219,7 +250,7 @@ export function App() {
   const [selection, setSelection] = useState<Selection>({ key: "demo\u0000menu.start", language: "ja" });
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("Demo workspace loaded");
-  const [ai, setAi] = useState<AiSettings>(AI_DEFAULT);
+  const [ai, setAi] = useState<AiSettings>(() => loadAiSettings());
   const [suggestion, setSuggestion] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
@@ -242,6 +273,9 @@ export function App() {
     localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
     document.documentElement.lang = uiLanguage;
   }, [uiLanguage]);
+  useEffect(() => {
+    saveAiSettings(ai);
+  }, [ai]);
   useEffect(() => {
     function closeOpenMenus(event: PointerEvent) {
       document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
@@ -817,22 +851,29 @@ export function App() {
 
   async function generateSuggestion() {
     if (!current || !selection) return;
-    if (!ai.endpoint || !ai.model) {
+    if (ai.provider === "openai-compatible" && (!ai.endpoint || !ai.model)) {
+      setModal("ai");
+      return;
+    }
+    if (ai.provider === "deepl" && !ai.apiKey) {
       setModal("ai");
       return;
     }
     setAiBusy(true);
     try {
-      const prompt = ai.prompt.replaceAll("{{language}}", selection.language).replaceAll("{{source}}", current.source);
-      const response = await fetch(ai.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${ai.apiKey}` },
-        body: JSON.stringify({ model: ai.model, messages: [{ role: "user", content: prompt }] }),
-      });
-      const data = await response.json();
-      setSuggestion(data.choices?.[0]?.message?.content ?? data.translation ?? "");
+      if (ai.provider === "openai-compatible") {
+        const prompt = ai.prompt.replaceAll("{{language}}", selection.language).replaceAll("{{source}}", current.source);
+        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt });
+        setSuggestion(result.text);
+        if (result.strippedThink) appendDiagnostic("ai.stripped_think", { language: selection.language, source: current.source });
+      } else {
+        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: current.source, targetLang: selection.language });
+        if (!result.text) throw new Error("empty");
+        setSuggestion(result.text);
+        if (result.detectedSource) appendDiagnostic("deepl.detected_source", { detected: result.detectedSource, requested: toDeepLTargetLanguage(selection.language) });
+      }
     } catch {
-      setNotice("AI request failed. Check endpoint and model settings.");
+      setNotice(ai.provider === "deepl" ? "DeepL request failed. Check region and API key." : "AI request failed. Check endpoint and model settings.");
     } finally {
       setAiBusy(false);
     }
@@ -1008,10 +1049,23 @@ export function App() {
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />
 
       {modal === "ai" ? <ModalFrame title={t.aiSuggestionSettings} close={() => setModal(null)}><div className="form-grid">
-        <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
-        <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
-        <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="Stored only in this local session" /></label>
-        <label>{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
+        <fieldset className="provider-switch"><legend>{t.provider}</legend>
+          <label className={ai.provider === "openai-compatible" ? "active" : ""}><input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => setAi({ ...ai, provider: "openai-compatible" })} />{t.providerOpenAi}</label>
+          <label className={ai.provider === "deepl" ? "active" : ""}><input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion] })} />{t.providerDeepl}</label>
+        </fieldset>
+        {ai.provider === "openai-compatible" ? <>
+          <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
+          <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
+          <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="Stored in this browser via localStorage" /></label>
+          <label>{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
+        </> : <>
+          <fieldset className="provider-switch"><legend>{t.deeplRegion}</legend>
+            <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} />{t.deeplFree}</label>
+            <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} />{t.deeplPro}</label>
+          </fieldset>
+          <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[ai.deeplRegion]} /></label>
+          <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
+        </>}
         <Button variant="primary" onClick={() => setModal(null)}>{t.done}</Button>
       </div></ModalFrame> : null}
 
