@@ -30,7 +30,7 @@ import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, SourceD
 import { DEEPL_ENDPOINTS, ProviderHttpError as DeepLProviderHttpError, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
 import { ProviderHttpError as OpenAiProviderHttpError, requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
 import { ANTHROPIC_COMPATIBLE_PRESETS, OPENAI_COMPATIBLE_PRESETS, providerPreset } from "./providers/presets";
-import { createDemoProject } from "./demo";
+import { createDemoProject, type DemoSourceLanguage } from "./demo";
 
 type Modal = "ai" | "batch" | "files" | "csv" | "diagnostics" | null;
 type Selection = { key: string; language: string } | null;
@@ -52,8 +52,8 @@ const cellDraftKey = (entryKey: string, language: string) => `${entryKey}\u0001$
 const matrixCellKey = (entryKey: string, column: string) => `${entryKey}\u0001${column}`;
 const SOURCE_COLUMN = "$source";
 const TAGS_COLUMN = "$tags";
-const DEFAULT_COLUMN_WIDTHS = { [SOURCE_COLUMN]: 250, [TAGS_COLUMN]: 150 };
-const DEFAULT_LANGUAGE_WIDTH = 175;
+const DEFAULT_COLUMN_WIDTHS = { [SOURCE_COLUMN]: 210, [TAGS_COLUMN]: 110 };
+const DEFAULT_LANGUAGE_WIDTH = 115;
 const MIN_COLUMN_WIDTH = 96;
 const MAX_COLUMN_WIDTH = 640;
 const MAX_HISTORY_STEPS = 100;
@@ -61,6 +61,8 @@ const UI_LANGUAGE_KEY = "lingrid-ui-language";
 const AI_SETTINGS_KEY = "lingrid-ai-settings";
 const DEFAULT_OPENAI_PRESET = "openai";
 const DEFAULT_ANTHROPIC_PRESET = "claude-native";
+const LEGACY_DEFAULT_AI_PROMPT = "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}";
+const DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
 const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
@@ -123,7 +125,7 @@ export const AI_DEFAULT: AiSettings = {
   endpoint: "",
   apiKey: "",
   model: "",
-  prompt: "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}",
+  prompt: DEFAULT_AI_PROMPT,
   deeplRegion: "deepl",
 };
 
@@ -228,6 +230,21 @@ function normalizeDeepLRegion(region: unknown): AiSettings["deeplRegion"] {
   return region === "deeplx" ? "deeplx" : "deepl";
 }
 
+function migrateDefaultAiPrompt(prompt: unknown): string | undefined {
+  if (prompt === LEGACY_DEFAULT_AI_PROMPT) return DEFAULT_AI_PROMPT;
+  return typeof prompt === "string" ? prompt : undefined;
+}
+
+function migrateAiProfiles(profiles: unknown): Record<string, AiSettingsProfile> | undefined {
+  if (!profiles || typeof profiles !== "object") return undefined;
+  return Object.fromEntries(
+    Object.entries(profiles as Record<string, AiSettingsProfile>).map(([key, profile]) => [
+      key,
+      { ...profile, prompt: migrateDefaultAiPrompt(profile.prompt) ?? profile.prompt },
+    ]),
+  );
+}
+
 export function loadAiSettings(storage: StorageLike = window.localStorage): AiSettings {
   try {
     const raw = storage.getItem(AI_SETTINGS_KEY);
@@ -239,6 +256,8 @@ export function loadAiSettings(storage: StorageLike = window.localStorage): AiSe
     merged.openAiPreset ||= DEFAULT_OPENAI_PRESET;
     merged.anthropicPreset ||= DEFAULT_ANTHROPIC_PRESET;
     merged.deeplRegion = normalizeDeepLRegion(merged.deeplRegion);
+    merged.prompt = migrateDefaultAiPrompt(parsed.prompt) ?? AI_DEFAULT.prompt;
+    merged.profiles = migrateAiProfiles(parsed.profiles);
     return merged;
   } catch {
     return AI_DEFAULT;
@@ -328,6 +347,16 @@ function sourceSaveAsLabel(language: UiLanguage, format: "PO" | "CSV"): string {
   return `Save ${format} As`;
 }
 
+function demoSourceLanguageForUi(language: UiLanguage): DemoSourceLanguage {
+  if (language === "zh") return "zh-CN";
+  if (language === "ja") return "ja";
+  return "en";
+}
+
+function isDemoProject(project: LingridProject): boolean {
+  return project.documents.length === 0 && project.entries.every((entry) => entry.key.startsWith("demo\u0000"));
+}
+
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
@@ -376,10 +405,13 @@ export function App() {
     return navigator.language.startsWith("zh") ? "zh" : navigator.language.startsWith("ja") ? "ja" : "en";
   });
   const t = UI_TEXT[uiLanguage];
-  const [project, setProject] = useState<LingridProject>(() => createDemoProject());
-  const [selection, setSelection] = useState<Selection>({ key: "demo\u0000menu.start", language: "ja" });
-  const [activeMatrixCell, setActiveMatrixCell] = useState<MatrixCellSelection | null>({ key: "demo\u0000menu.start", column: "ja" });
-  const [selectedMatrixCells, setSelectedMatrixCells] = useState<MatrixCellSelection[]>([{ key: "demo\u0000menu.start", column: "ja" }]);
+  const demoSourceLanguage = demoSourceLanguageForUi(uiLanguage);
+  const initialDemoProject = useMemo(() => createDemoProject(demoSourceLanguage), [demoSourceLanguage]);
+  const initialDemoSelection = { key: "demo\u0000menu.start", column: initialDemoProject.columnOrder[0] ?? "en" };
+  const [project, setProject] = useState<LingridProject>(() => initialDemoProject);
+  const [selection, setSelection] = useState<Selection>({ key: initialDemoSelection.key, language: initialDemoSelection.column });
+  const [activeMatrixCell, setActiveMatrixCell] = useState<MatrixCellSelection | null>(initialDemoSelection);
+  const [selectedMatrixCells, setSelectedMatrixCells] = useState<MatrixCellSelection[]>([initialDemoSelection]);
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("Demo workspace loaded");
   const [ai, setAi] = useState<AiSettings>(() => loadAiSettings());
@@ -394,7 +426,7 @@ export function App() {
   const [sourceSaveStatus, setSourceSaveStatus] = useState<SourceSaveStatus>({ kind: "idle" });
   const [draggedLanguage, setDraggedLanguage] = useState<string | null>(null);
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
-  const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(createDemoProject()));
+  const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(initialDemoProject));
   const [pendingBrowserProject, setPendingBrowserProject] = useState<{ config: ProjectConfig; projectFileHandle: FileSystemFileHandle } | null>(null);
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -408,6 +440,20 @@ export function App() {
     localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
     document.documentElement.lang = uiLanguage;
   }, [uiLanguage]);
+  useEffect(() => {
+    if (!isDemoProject(project)) return;
+    const nextDemoProject = createDemoProject(demoSourceLanguage);
+    const nextSelection = { key: "demo\u0000menu.start", column: nextDemoProject.columnOrder[0] ?? "en" };
+    setProject(nextDemoProject);
+    setSelection({ key: nextSelection.key, language: nextSelection.column });
+    setActiveMatrixCell(nextSelection);
+    setSelectedMatrixCells([nextSelection]);
+    setCellDrafts({});
+    setUndoStack([]);
+    setRedoStack([]);
+    setSourceSaveStatus({ kind: "idle" });
+    setSavedProjectSnapshot(serializeProject(nextDemoProject));
+  }, [demoSourceLanguage]);
   useEffect(() => {
     function closeOpenMenus(event: PointerEvent) {
       document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
@@ -1490,6 +1536,11 @@ export function App() {
   const aiSettingsDirty = aiDraft ? JSON.stringify(aiDraft) !== JSON.stringify(ai) : false;
   const currentAiUsageLabel = aiUsageLabel(ai);
 
+  function matrixHeaderLabel(language: string): string {
+    if (!isDemoProject(project)) return project.columnLabels[language] ?? language;
+    return ({ "zh-CN": "简中", en: "EN", ja: "JA", ko: "KO", ru: "RU" } as Record<string, string>)[language] ?? project.columnLabels[language] ?? language;
+  }
+
   return (
     <main className="app-shell" onKeyDown={handleUndoRedoShortcut}>
       <header className="topbar" onMouseDown={clearMatrixSelectionFromNonCell}>
@@ -1563,7 +1614,7 @@ export function App() {
         <section className="matrix-wrap" onMouseDown={clearMatrixSelectionFromNonCell}>
           <table className="matrix" style={{ width: columnWidth(SOURCE_COLUMN) + project.columnOrder.reduce((sum, language) => sum + columnWidth(language), 0) + columnWidth(TAGS_COLUMN) }}>
             <colgroup><col style={{ width: columnWidth(SOURCE_COLUMN) }} />{project.columnOrder.map((language) => <col key={language} style={{ width: columnWidth(language) }} />)}<col style={{ width: columnWidth(TAGS_COLUMN) }} /></colgroup>
-            <thead><tr><th className="source-col">{t.source}{resizeHandle(SOURCE_COLUMN)}</th>{project.columnOrder.map((language) => <th className={dragOverLanguage === language ? "drag-over" : ""} key={language} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverLanguage(language); }} onDragLeave={() => setDragOverLanguage((current) => current === language ? null : current)} onDrop={(event) => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); dropLanguage(language, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after"); }}><button draggable className={`sort-header ${project.view.sort?.language === language ? "active" : ""} ${draggedLanguage === language ? "dragging" : ""}`} title="Click to sort. Drag to reorder columns." onClick={() => { if (!draggedHeader.current) cycleSort(language); }} onDragStart={(event) => { draggedHeader.current = true; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", language); setDraggedLanguage(language); }} onDragEnd={() => { setDraggedLanguage(null); setDragOverLanguage(null); requestAnimationFrame(() => { draggedHeader.current = false; }); }}>{project.columnLabels[language] ?? language}{sortIcon(language, project.view.sort?.mode)}</button>{resizeHandle(language)}</th>)}<th>{t.tags}{resizeHandle(TAGS_COLUMN)}</th></tr></thead>
+            <thead><tr><th className="source-col">{t.source}{resizeHandle(SOURCE_COLUMN)}</th>{project.columnOrder.map((language) => <th className={dragOverLanguage === language ? "drag-over" : ""} key={language} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverLanguage(language); }} onDragLeave={() => setDragOverLanguage((current) => current === language ? null : current)} onDrop={(event) => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); dropLanguage(language, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after"); }}><button draggable className={`sort-header ${project.view.sort?.language === language ? "active" : ""} ${draggedLanguage === language ? "dragging" : ""}`} title="Click to sort. Drag to reorder columns." onClick={() => { if (!draggedHeader.current) cycleSort(language); }} onDragStart={(event) => { draggedHeader.current = true; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", language); setDraggedLanguage(language); }} onDragEnd={() => { setDraggedLanguage(null); setDragOverLanguage(null); requestAnimationFrame(() => { draggedHeader.current = false; }); }}>{matrixHeaderLabel(language)}{sortIcon(language, project.view.sort?.mode)}</button>{resizeHandle(language)}</th>)}<th>{t.tags}{resizeHandle(TAGS_COLUMN)}</th></tr></thead>
             <tbody>{visible.map((entry) => (
               <tr key={entry.key} className={entry.key === selection?.key ? "selected-row" : ""}>
                 <td className="source-col"><strong>{entry.source}</strong>{entry.context ? <small>{entry.context}</small> : null}</td>

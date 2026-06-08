@@ -149,6 +149,22 @@ describe("AI settings persistence (localStorage)", () => {
     expect(loaded.prompt).toBe(AI_DEFAULT.prompt);
   });
 
+  it("loadAiSettings migrates the legacy default prompt without overwriting custom prompts", () => {
+    const storage = fakeStorage();
+    const legacyPrompt = "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}";
+    storage.setItem("lingrid-ai-settings", JSON.stringify({
+      ...AI_DEFAULT,
+      prompt: legacyPrompt,
+      profiles: { "openai-compatible:minimax": { prompt: legacyPrompt } },
+    }));
+    const loaded = loadAiSettings(storage);
+    expect(loaded.prompt).toBe(AI_DEFAULT.prompt);
+    expect(loaded.profiles?.["openai-compatible:minimax"].prompt).toBe(AI_DEFAULT.prompt);
+
+    storage.setItem("lingrid-ai-settings", JSON.stringify({ ...AI_DEFAULT, prompt: "custom {{source}}" }));
+    expect(loadAiSettings(storage).prompt).toBe("custom {{source}}");
+  });
+
   it("loadAiSettings returns AI_DEFAULT when stored JSON is corrupt", () => {
     const storage = fakeStorage();
     storage.setItem("lingrid-ai-settings", "not-json{{");
@@ -328,8 +344,7 @@ describe("isKnownPlaceholderEndpoint", () => {
 
   it("treats user-typed non-preset endpoints as NOT placeholder", async () => {
     const mod = await import("../renderer/providers/placeholder-detect");
-    // The user's actual endpoint from this session — must NOT be a placeholder.
-    expect(mod.isKnownPlaceholderEndpoint("https://api.minimaxi.com/v1/chat/completions")).toBe(false);
+    expect(mod.isKnownPlaceholderEndpoint("https://example.test/custom/chat/completions")).toBe(false);
   });
 });
 

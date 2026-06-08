@@ -171,6 +171,14 @@
     - [x] 右上角提供应用界面语言切换，支持中文、日文和英文
     - [x] 界面语言切换使用与顶部筛选一致的标准轻量弹出菜单，不使用浏览器原生下拉样式
     - [x] 界面语言作为本地偏好保存，不写入 project JSON
+  - [x] [UI-A-011] 默认演示项目按本地化语言选择 source #feature #P1
+    - [x] 简体中文界面使用简体中文 demo source，英文界面使用英文 demo source，日文界面使用日文 demo source
+    - [x] 简体中文、英文和日文 demo source 分别使用适合该本地化语境的独立演示文案，不直接复用同一套翻译文本
+    - [x] 当前项目仍是 demo 时，切换网站语言会同步切换 demo source；导入真实项目后切换网站语言不影响项目数据
+    - [x] 语言列自动排除当前 source 语言，避免 source 与后续列重复
+    - [x] 演示语言增加韩语 `ko` 与俄语 `ru`
+    - [x] 演示词条增加 `进入：地点` 与 `要使用“道具”吗？`，用于测试冒号、引号和问号等标点
+    - [x] demo 矩阵表头使用短标签，并缩小默认 source / language / tag 列宽，避免默认窗口横滚
   - [x] [UI-A-002] 实现矩阵表格
     - [x] 行代表 source entry
     - [x] 列代表 source、语言和 tag
@@ -348,6 +356,7 @@
     - [x] 每个预设应保存：显示名称、协议类型、默认 endpoint/baseURL、默认 model placeholder、API key placeholder、简短差异说明
     - [x] 预设切换时自动填入 endpoint/baseURL 与 model placeholder，但不覆盖用户已经输入的 API key
     - [x] `Claude OpenAI SDK compatibility` 必须提示：官方说明该兼容层主要用于测试/对比能力，长期生产优先使用 Claude native API
+    - [x] MiniMax OpenAI-compatible 默认 endpoint 使用 `https://api.minimaxi.com/v1/chat/completions`
   - [x] [AI-A-023] `其他兼容` 下提供非 OpenAI 兼容路径，至少预留：`Anthropic / Claude native`、`MiniMax Anthropic-compatible`、`自定义 Anthropic-compatible`
     - [x] 这些路径在未实现 adapter 前应显示“待实现”或禁用状态，不允许用户误以为已经可调用
   - [x] [AI-A-024] provider 展开区沿用顶层 provider 的视觉结构，不再使用原生 radio 或未美化的按钮
@@ -363,6 +372,7 @@
   - [x] [AI-A-032] `{{source}}` 必须替换为当前行的 source 文本
   - [x] [AI-A-033] 单单元格 AI 建议、多选 AI 翻译、空单元格批量 AI 翻译都必须走同一套变量渲染逻辑
   - [x] [AI-A-034] 增加测试覆盖：不同语言列、不同 source 行、多选/批量场景下 `{{language}}` 与 `{{source}}` 渲染正确
+  - [x] [AI-A-035] 默认 prompt 使用游戏本地化语境，要求按源语言游戏行业术语理解并输出自然的玩家可见目标语言译文
 - [x] [AI-A-040] 支持 AI 翻译批量填充 #feature #P1
   - [x] [AI-A-041] 当没有选中具体翻译单元格时，点击 AI 翻译/生成应翻译全部可编辑的空置译文单元格，并直接写入对应单元格
     - [x] 不处理 source 列、tag 列、不可编辑缺失条目、已有译文的单元格和 `.pot` 只读内容
@@ -446,6 +456,29 @@
   - [ ] [EDIT-A-021] 将原 “changed” (已修改) 筛选重构为 “修改状态” 筛选
   - [ ] [EDIT-A-022] 筛选器提供多选下拉菜单，包含：`从未修改`、`已修改` (当前会话有未保存修改)、`未修改` (当前会话无未保存修改)
   - [ ] [EDIT-A-023] 默认选项为全选 (全部勾选)
+
+### PERF-A：矩阵大工程性能优化 #epic #P1.5
+
+- [ ] [PERF-A-000] 实现矩阵视图的性能重构 #feature #P1.5
+  - [ ] [PERF-A-001] 引入虚拟滚动（Virtual Scroll / Windowing）机制，只渲染可视区域内的行，以**解决打开数千条翻译的大工程时，DOM 节点数过载导致的滚动和布局卡顿问题**。
+    - [ ] 确保多选状态完全保存在 JavaScript 内存中（非 DOM 绑定），以保证跨视口多选（Shift+Click）和复制/粘贴能正常执行
+    - [ ] 确保键盘导航（使用 `Enter` / `Tab` 移动到屏幕外的未渲染行）能配合虚拟列表 API（如 `scrollToItem`）自动滚动对齐，待目标单元格 DOM 挂载后再安全执行聚焦（`.focus()`）
+  - [ ] [PERF-A-002] 实现输入框状态下放（Local State），用户打字时由单元格局部状态管理，失焦（onBlur）、回车或 Tab 时再同步至全局，以**避免打字时每一次按键都触发 App 顶层组件全量重渲染导致的输入卡顿**。
+  - [ ] [PERF-A-003] 将行和单元格拆分为独立的 memo 组件（如 `MatrixRow`, `MatrixCell`），结合 `useCallback` 稳定回调引用，以**阻止选中或更新单个单元格时，让其他未发生变化的数千个单元格进行无谓的 Virtual DOM Diff 计算**。
+
+### FILE-B：隐藏式项目文件与文件夹加载 #epic #P1.5
+
+- [ ] [FILE-B-000] 隐藏式项目管理与自动加载 #feature #P1.5
+  - [ ] [FILE-B-001] 项目配置文件改名/重构为隐藏文件样式（如 `.lingrid`，存储于目标翻译文件夹中）
+  - [ ] [FILE-B-002] 加载项目时，用户直接选择并授权目标项目目录（文件夹），应用在目录下自动搜寻并加载该 `.lingrid` 配置文件，若找到则直接加载成功
+  - [ ] [FILE-B-003] 保存/新建项目时，在目标目录中静默写入 `.lingrid` 配置文件
+
+### FILE-C：最近项目历史记录列表 #epic #P1.5
+
+- [ ] [FILE-C-000] 基于 localStorage 的已知项目快速访问 #feature #P1.5
+  - [ ] [FILE-C-001] 在 `localStorage` 中记录已打开项目的历史工程列表（记录项目路径、文件夹名称、上次访问时间等）
+  - [ ] [FILE-C-002] 主界面提供“最近项目”的快捷入口，便于用户一键快速打开已知工程
+  - [ ] [FILE-C-003] 快速项目列表的界面设计待定（TBD），需支持快捷清除历史记录或单条移除
 
 ## 阶段 2：后续 Backlog
 

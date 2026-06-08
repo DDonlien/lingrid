@@ -33,7 +33,7 @@ export const OPENAI_COMPATIBLE_PRESETS: ProviderPreset[] = [
   {
     id: "minimax",
     label: "MiniMax",
-    endpoint: "https://api.minimax.io/v1/chat/completions",
+    endpoint: "https://api.minimaxi.com/v1/chat/completions",
     modelPlaceholder: "MiniMax-M2.7",
     apiKeyPlaceholder: "Bearer token",
     description: "MiniMax OpenAI-Compatible API。",
