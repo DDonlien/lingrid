@@ -96,6 +96,7 @@ code { display: block; overflow: hidden; color: #71717a; font-size: 11px; text-o
 .ai-panel, .stats { margin-top: 16px; padding-top: 14px; border-top: 1px solid #e4e4e7; }
 .panel-heading { justify-content: space-between; color: #52525b; font-size: 12px; font-weight: 650; }
 .panel-heading span { display: flex; align-items: center; gap: 6px; }
+.ai-usage-hint { display: block; margin-top: 4px; color: #a1a1aa; font-size: 10px; line-height: 1.4; }
 .ai-panel p { min-height: 42px; margin: 10px 0; color: #71717a; font-size: 12px; line-height: 1.5; }
 .stats { margin-top: 18px; }
 .stat { margin-top: 12px; }

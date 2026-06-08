@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { toDeepLTargetLanguage } from "../renderer/providers/deepl";
-import { stripThinkTags } from "../renderer/providers/openai-compatible";
-import { AI_DEFAULT, loadAiSettings, saveAiSettings } from "../renderer/App";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { requestDeepLTranslation, toDeepLTargetLanguage } from "../renderer/providers/deepl";
+import { ProviderHttpError, requestOpenAiCompatibleTranslation, stripThinkTags } from "../renderer/providers/openai-compatible";
+import { AI_DEFAULT, loadAiSettings, saveAiSettings, switchAiSettingsProfile } from "../renderer/App";
 
 describe("DeepL language code mapping", () => {
   it("maps zh-CN / zh-Hans / zh to ZH-HANS", () => {
@@ -120,9 +120,17 @@ describe("AI settings persistence (localStorage)", () => {
 
   it("loadAiSettings round-trips through saveAiSettings", () => {
     const storage = fakeStorage();
-    const written: typeof AI_DEFAULT = { ...AI_DEFAULT, provider: "deepl", deeplRegion: "pro", endpoint: "https://api.deepl.com/v2/translate", apiKey: "x-xxxx-xxxx-xxxx", model: "", prompt: AI_DEFAULT.prompt };
+    const written: typeof AI_DEFAULT = { ...AI_DEFAULT, provider: "deepl", deeplRegion: "deepl", endpoint: "https://api.deepl.com/v2/translate", apiKey: "x-xxxx-xxxx-xxxx", model: "", prompt: AI_DEFAULT.prompt };
     saveAiSettings(written, storage);
     expect(loadAiSettings(storage)).toEqual(written);
+  });
+
+  it("loadAiSettings migrates legacy DeepL free / pro regions to DeepL", () => {
+    const storage = fakeStorage();
+    storage.setItem("lingrid-ai-settings", JSON.stringify({ ...AI_DEFAULT, provider: "deepl", deeplRegion: "pro" }));
+    expect(loadAiSettings(storage).deeplRegion).toBe("deepl");
+    storage.setItem("lingrid-ai-settings", JSON.stringify({ ...AI_DEFAULT, provider: "deepl", deeplRegion: "free" }));
+    expect(loadAiSettings(storage).deeplRegion).toBe("deepl");
   });
 
   it("loadAiSettings returns AI_DEFAULT when storage is empty", () => {
@@ -156,5 +164,189 @@ describe("AI settings persistence (localStorage)", () => {
       removeItem: () => {},
     };
     expect(() => saveAiSettings(AI_DEFAULT, broken)).not.toThrow();
+  });
+});
+
+describe("OpenAI-compatible provider error surfacing", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  function stubFetch(status: number, statusText: string, body: string, contentType = "application/json") {
+    globalThis.fetch = vi.fn(async () => new Response(body, { status, statusText, headers: { "content-type": contentType } })) as typeof fetch;
+  }
+
+  it("returns stripped text on a 2xx response", async () => {
+    stubFetch(200, "OK", JSON.stringify({ choices: [{ message: { content: "  hello  " } }] }));
+    const result = await requestOpenAiCompatibleTranslation({ endpoint: "https://x", apiKey: "k", model: "m", prompt: "p" });
+    expect(result.text).toBe("hello");
+    expect(result.strippedThink).toBe(false);
+  });
+
+  it("throws ProviderHttpError with status + body preview on non-2xx", async () => {
+    stubFetch(401, "Unauthorized", JSON.stringify({ error: { message: "invalid api key" } }));
+    await expect(requestOpenAiCompatibleTranslation({ endpoint: "https://x", apiKey: "k", model: "m", prompt: "p" }))
+      .rejects.toMatchObject({ status: 401, bodyPreview: expect.stringContaining("invalid api key") });
+  });
+
+  it("truncates very large error bodies", async () => {
+    const huge = "x".repeat(2000);
+    stubFetch(500, "Internal Server Error", huge, "text/plain");
+    try {
+      await requestOpenAiCompatibleTranslation({ endpoint: "https://x", apiKey: "k", model: "m", prompt: "p" });
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ProviderHttpError);
+      expect((error as ProviderHttpError).bodyPreview.length).toBeLessThan(700);
+      expect((error as ProviderHttpError).bodyPreview).toContain("truncated");
+    }
+  });
+});
+
+describe("DeepL provider error surfacing", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  function stubFetch(status: number, statusText: string, body: string) {
+    globalThis.fetch = vi.fn(async () => new Response(body, { status, statusText, headers: { "content-type": "application/json" } })) as typeof fetch;
+  }
+
+  it("returns translation on a 2xx response", async () => {
+    stubFetch(200, "OK", JSON.stringify({ translations: [{ detected_source_language: "EN", text: "Hallo" }] }));
+    const result = await requestDeepLTranslation({ endpoint: "https://x", region: "deepl", apiKey: "k", text: "Hello", targetLang: "de" });
+    expect(result.text).toBe("Hallo");
+    expect(result.detectedSource).toBe("EN");
+  });
+
+  it("uses the DeepLX JSON protocol and parses data responses", async () => {
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      expect((init?.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+      expect(JSON.parse(String(init?.body))).toEqual({ text: "Hello", target_lang: "DE", source_lang: "auto" });
+      return new Response(JSON.stringify({ data: "Hallo" }), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    const result = await requestDeepLTranslation({ endpoint: "http://localhost:1188/translate", region: "deeplx", apiKey: "", text: "Hello", targetLang: "de" });
+    expect(result.text).toBe("Hallo");
+  });
+
+  it("throws ProviderHttpError on 4xx (e.g. wrong region / bad key)", async () => {
+    stubFetch(403, "Forbidden", JSON.stringify({ message: "Wrong endpoint, please check your DeepL account region." }));
+    try {
+      await requestDeepLTranslation({ endpoint: "https://x", region: "deepl", apiKey: "k", text: "Hi", targetLang: "de" });
+      throw new Error("expected throw");
+    } catch (error) {
+      expect((error as Error).message).toContain("403");
+      expect((error as Error).message).toContain("Forbidden");
+    }
+  });
+
+  it("throws ProviderHttpError on 4xx with target_lang validation error", async () => {
+    stubFetch(400, "Bad Request", JSON.stringify({ message: "Value for 'target_lang' not supported." }));
+    try {
+      await requestDeepLTranslation({ endpoint: "https://x", region: "deepl", apiKey: "k", text: "Hi", targetLang: "xx" });
+      throw new Error("expected throw");
+    } catch (error) {
+      expect((error as Error).message).toContain("400");
+    }
+  });
+});
+
+describe("AI_DEFAULT no longer seeds endpoint / model from preset", () => {
+  it("AI_DEFAULT.endpoint is empty so user overrides survive preset switches", () => {
+    expect(AI_DEFAULT.endpoint).toBe("");
+  });
+  it("AI_DEFAULT.model is empty so user overrides survive preset switches", () => {
+    expect(AI_DEFAULT.model).toBe("");
+  });
+  it("loadAiSettings when storage is empty returns empty endpoint / model", () => {
+    const storage = {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+    const loaded = loadAiSettings(storage);
+    expect(loaded.endpoint).toBe("");
+    expect(loaded.model).toBe("");
+  });
+});
+
+describe("AI settings provider profiles", () => {
+  it("keeps hand-edited MiniMax config separate from OpenAI config", () => {
+    const minimax = switchAiSettingsProfile(AI_DEFAULT, { provider: "openai-compatible", openAiPreset: "minimax" });
+    const editedMinimax = {
+      ...minimax,
+      endpoint: "https://api.minimaxi.com/v1/chat/completions",
+      model: "MiniMax-M2.7",
+      apiKey: "minimax-key",
+    };
+    const openai = switchAiSettingsProfile(editedMinimax, { provider: "openai-compatible", openAiPreset: "openai" });
+    expect(openai.endpoint).toBe("https://api.openai.com/v1/chat/completions");
+    expect(openai.model).toBe("gpt-4o-mini");
+    expect(openai.apiKey).toBe("");
+
+    const backToMinimax = switchAiSettingsProfile(openai, { provider: "openai-compatible", openAiPreset: "minimax" });
+    expect(backToMinimax.endpoint).toBe("https://api.minimaxi.com/v1/chat/completions");
+    expect(backToMinimax.model).toBe("MiniMax-M2.7");
+    expect(backToMinimax.apiKey).toBe("minimax-key");
+  });
+
+  it("keeps DeepL endpoint separate from OpenAI-compatible presets", () => {
+    const deepl = switchAiSettingsProfile(AI_DEFAULT, { provider: "deepl", deeplRegion: "deepl" });
+    const editedDeepl = { ...deepl, endpoint: "https://api.deepl.com/v2/translate", apiKey: "deepl-key" };
+    const openai = switchAiSettingsProfile(editedDeepl, { provider: "openai-compatible", openAiPreset: "openai" });
+    expect(openai.endpoint).toBe("https://api.openai.com/v1/chat/completions");
+    expect(openai.apiKey).toBe("");
+
+    const backToDeepl = switchAiSettingsProfile(openai, { provider: "deepl", deeplRegion: "deepl" });
+    expect(backToDeepl.endpoint).toBe("https://api.deepl.com/v2/translate");
+    expect(backToDeepl.apiKey).toBe("deepl-key");
+  });
+});
+
+describe("isKnownPlaceholderEndpoint", () => {
+  it("treats empty / undefined as placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderEndpoint("")).toBe(true);
+    expect(mod.isKnownPlaceholderEndpoint(undefined)).toBe(true);
+    expect(mod.isKnownPlaceholderEndpoint(null)).toBe(true);
+  });
+
+  it("treats DeepL / DeepLX endpoints as placeholder (the bug fix)", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderEndpoint("https://api.deepl.com/v2/translate")).toBe(true);
+    expect(mod.isKnownPlaceholderEndpoint("http://localhost:1188/translate")).toBe(true);
+  });
+
+  it("treats OpenAI preset endpoints as placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderEndpoint("https://api.openai.com/v1/chat/completions")).toBe(true);
+  });
+
+  it("treats user-typed non-preset endpoints as NOT placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    // The user's actual endpoint from this session — must NOT be a placeholder.
+    expect(mod.isKnownPlaceholderEndpoint("https://api.minimaxi.com/v1/chat/completions")).toBe(false);
+  });
+});
+
+describe("isKnownPlaceholderModel", () => {
+  it("treats empty as placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderModel("")).toBe(true);
+    expect(mod.isKnownPlaceholderModel(undefined)).toBe(true);
+  });
+
+  it("treats preset modelPlaceholders as placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderModel("MiniMax-M2.7")).toBe(true);
+  });
+
+  it("treats user-typed non-preset models as NOT placeholder", async () => {
+    const mod = await import("../renderer/providers/placeholder-detect");
+    expect(mod.isKnownPlaceholderModel("my-custom-fine-tuned-model-2026")).toBe(false);
   });
 });

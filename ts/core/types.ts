@@ -67,6 +67,13 @@ export interface LingridProject {
 
 export type AiProvider = "openai-compatible" | "anthropic-compatible" | "deepl";
 
+export interface AiSettingsProfile {
+  endpoint?: string;
+  apiKey?: string;
+  model?: string;
+  prompt?: string;
+}
+
 export interface AiSettings {
   provider: AiProvider;
   openAiPreset: string;
@@ -75,5 +82,6 @@ export interface AiSettings {
   apiKey: string;
   model: string;
   prompt: string;
-  deeplRegion: "free" | "pro";
+  deeplRegion: "deepl" | "deeplx";
+  profiles?: Record<string, AiSettingsProfile>;
 }

@@ -304,9 +304,44 @@
   - [x] [AI-A-013] AI 设置弹窗按视觉规范优化 #ui #P1
     - [x] provider 使用低噪声分段卡片，显示服务说明而不是裸 radio
     - [x] OpenAI 兼容与 DeepL 配置按卡片分区展示，避免表单堆叠感
-    - [x] DeepL Free / Pro 区域选择沿用同一分段控件，并显示对应 endpoint
+    - [x] DeepL / DeepLX 服务选择沿用同一分段控件，并显示对应 endpoint
     - [x] prompt template 使用全宽输入区域，并说明 `{{language}}` 与 `{{source}}` 占位符
     - [x] 设置内容超过视口高度时，弹窗内容区可上下滚动，标题栏保持可见
+  - [x] [AI-A-014] AI 翻译链路全量留痕到诊断日志 #feature #P1
+    - [x] `providers/openai-compatible.ts` 与 `providers/deepl.ts` 引入 `ProviderHttpError`，非 2xx 响应抛带 `status` / `contentType` / `bodyPreview` 的 Error
+    - [x] `requestAiTranslation` 接入诊断日志：每次调用打 `ai.request.start` / `ai.request.success` / `ai.request.error` 或 `deepl.request.start` / `deepl.request.success` / `deepl.request.error`
+    - [x] 日志详情记录 endpoint / model / target_lang / sourceLength / 响应长度 / 检测到的源语言；**不**记录 `apiKey` / 译文正文
+    - [x] 失败时 `extractServerMessage` 解析 DeepL / OpenAI 错误体的 `message` 字段，notice 显示 `HTTP <status>: <server message>` 摘要
+    - [x] `generateBatchAi` 逐条失败时额外写 `ai.batch.item.error`，不再只 `failed += 1`
+    - [x] body 预览截断到 600 字符并附 `truncated` 标记，避免诊断日志被巨大错误体撑爆
+    - [x] `ts/tests/providers.test.ts` 新增 7 个用例：OpenAI 2xx / 4xx / 大 body 截断 + DeepL 2xx / 403 / 400 target_lang
+  - [x] [AI-A-015] AI 设置 modal 体感修复（复制 + 持久化真值）#bug #P1
+    - [x] `AI_DEFAULT.endpoint` / `AI_DEFAULT.model` 改为空字符串，避免初始默认值假象；用户手动填的 endpoint / model 切换预设时**不再被占位值覆盖**
+    - [x] `selectOpenAiPreset` / `selectAnthropicPreset` 增加"endpoint 是否仍是上一预设占位"判断：仅当 endpoint 仍为占位（或空）时才覆盖；用户已填的真值保留
+    - [x] 三个密码 input（OpenAI 兼容 / Anthropic / DeepL）加 `onCopy` 与 `onCut` 主动写 clipboardData，绕过浏览器对 password 字段的 Ctrl-C 默认安全策略
+    - [x] AI 设置 modal 顶部加 "已记住：provider · endpoint · model · key ✓" 状态条，让用户能直观看到 localStorage 里的真值 #cut：2026-06-09 用户反馈该行冗余，改为仅保存时写诊断日志
+    - [x] `ts/tests/providers.test.ts` 新增 3 个用例：AI_DEFAULT.endpoint 空 / AI_DEFAULT.model 空 / loadAiSettings 空存储返回空 endpoint+model
+  - [x] [AI-A-016] 切 provider 后 form 字段未切回 #bug #P1
+    - [x] 新建 `ts/renderer/providers/placeholder-detect.ts`，导出 `isKnownPlaceholderEndpoint` / `isKnownPlaceholderModel` 纯函数
+    - [x] 占位判断覆盖**所有 provider** 的 preset.endpoint / modelPlaceholder + DeepL / DeepLX endpoint，不再只比对"上一预设"
+    - [x] 修复"DeepL 自动填的 endpoint 切回 OpenAI 时仍残留"——DeepL endpoint 现在被识别成占位 → 切回 OpenAI 时覆盖成 OpenAI preset 默认
+    - [x] DeepL radio onChange 也走同样的占位判断：当前 endpoint 是占位时切到 DeepL 才覆盖成 DeepL 默认；用户已填的真 endpoint 保留
+    - [x] `ts/tests/providers.test.ts` 新增 7 个用例：endpoint 空 / undefined / null / DeepL / OpenAI preset / 用户真值 / model 同款
+  - [x] [AI-A-017] 修复 AI 设置 provider / preset 配置串值 #bug #P1
+    - [x] `AiSettings` 增加 `profiles`，按 `provider:preset-or-region` 保存独立 endpoint、model、apiKey 和 prompt
+    - [x] 切换 OpenAI 兼容预设前先保存当前预设配置，切换后加载目标预设自己的配置；没有保存过才使用该预设默认值
+    - [x] DeepL / DeepLX 与 OpenAI 兼容预设互相切换时不再共用同一组 endpoint、model 和 apiKey
+    - [x] 旧版 localStorage 没有 `profiles` 时仍可加载，首次切换后自动补 profile
+    - [x] `ts/tests/providers.test.ts` 新增回归测试：MiniMax 自定义 endpoint 不会显示到 OpenAI；DeepL endpoint 不会显示到 OpenAI
+  - [x] [AI-A-018] AI 设置草稿保存与当前接口提示 #bug #P1
+    - [x] AI 设置 modal 改为草稿态：输入、切 provider 或切 tab 不立即写入 localStorage，也不改变当前 AI 调用配置
+    - [x] “完成”按钮在草稿与已保存配置不一致时显示橙色提示点；点击后才保存当前激活 tab 的 provider / preset / endpoint / model / prompt
+    - [x] 点击 X 或遮罩关闭 AI 设置 modal 时丢弃草稿，恢复到打开 modal 前的已保存配置
+    - [x] 保存 AI 设置时写入诊断日志 `ai.settings.save`，记录 provider / preset / endpoint / model / 是否有 key / prompt 长度，不记录 API key
+    - [x] AI 建议区显示当前正在使用的接口或模型小字：OpenAI 兼容显示 preset + model，DeepL 显示 DeepL 或 DeepLX
+    - [x] DeepL provider 选项由 Free / Pro 改为 DeepL / DeepLX，并兼容旧 localStorage 的 `free` / `pro` 值迁移到 DeepL
+    - [x] `requestDeepLTranslation` 支持 DeepLX JSON 请求与常见 `data` / `translation` / `text` 响应格式
+    - [x] `ts/tests/providers.test.ts` 增加旧 DeepL region 迁移与 DeepLX JSON 协议解析用例
 - [x] [AI-A-020] 扩展 AI provider 设置结构 #feature #P1
   - [x] [AI-A-021] 保持顶层 provider 结构：`OpenAI 兼容`、`其他兼容`、`单独 Provider`，其中 `DeepL` 作为单独 Provider 保留
   - [x] [AI-A-022] `OpenAI 兼容` 下提供预设选项，至少覆盖：`OpenAI`、`Kimi / Moonshot`、`MiniMax`、`通义千问 / DashScope`、`豆包 / 火山方舟`、`Gemini`、`Claude OpenAI SDK compatibility`、`自定义 OpenAI 兼容`

@@ -34,6 +34,31 @@ export function stripThinkTags(content: string): { text: string; stripped: boole
   return { text: stripped, stripped: stripped !== trimmed };
 }
 
+const RESPONSE_BODY_PREVIEW = 600;
+
+async function safeReadBody(response: Response): Promise<{ preview: string; contentType: string | null }> {
+  const contentType = response.headers.get("content-type");
+  try {
+    const text = await response.text();
+    return { preview: text.length > RESPONSE_BODY_PREVIEW ? `${text.slice(0, RESPONSE_BODY_PREVIEW)}…(truncated)` : text, contentType };
+  } catch (error) {
+    return { preview: `<body read failed: ${(error as Error).message}>`, contentType };
+  }
+}
+
+export class ProviderHttpError extends Error {
+  readonly status: number;
+  readonly contentType: string | null;
+  readonly bodyPreview: string;
+  constructor(status: number, statusText: string, contentType: string | null, bodyPreview: string) {
+    super(`HTTP ${status} ${statusText}`.trim());
+    this.name = "ProviderHttpError";
+    this.status = status;
+    this.contentType = contentType;
+    this.bodyPreview = bodyPreview;
+  }
+}
+
 export async function requestOpenAiCompatibleTranslation({ endpoint, apiKey, model, prompt, signal }: OpenAiCompatibleRequest): Promise<OpenAiCompatibleResult> {
   const response = await fetch(endpoint, {
     method: "POST",
@@ -41,6 +66,10 @@ export async function requestOpenAiCompatibleTranslation({ endpoint, apiKey, mod
     body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
     signal,
   });
+  if (!response.ok) {
+    const { preview, contentType } = await safeReadBody(response);
+    throw new ProviderHttpError(response.status, response.statusText, contentType, preview);
+  }
   const data = await response.json();
   const raw = (data?.choices?.[0]?.message?.content ?? data?.translation ?? "").toString();
   const { text, stripped } = stripThinkTags(raw);

@@ -26,9 +26,9 @@ import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
 import { renderAiPromptTemplate } from "../core/ai";
 import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
 import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
-import type { AiProvider, AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
-import { DEEPL_ENDPOINTS, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
-import { requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
+import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
+import { DEEPL_ENDPOINTS, ProviderHttpError as DeepLProviderHttpError, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
+import { ProviderHttpError as OpenAiProviderHttpError, requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
 import { ANTHROPIC_COMPATIBLE_PRESETS, OPENAI_COMPATIBLE_PRESETS, providerPreset } from "./providers/presets";
 import { createDemoProject } from "./demo";
 
@@ -76,7 +76,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
-    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerOtherCompatible: "其他兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", otherCompatibleHelp: "预留 Anthropic-compatible 等非 OpenAI 路径。", deeplHelp: "适合 DeepL 官方翻译接口。", providerPreset: "服务预设", disabledProvider: "待实现", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", deeplRegionHelp: "Free 与 Pro 使用不同 API 域名，切换后会自动填入端点。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
+    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerOtherCompatible: "其他兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", otherCompatibleHelp: "预留 Anthropic-compatible 等非 OpenAI 路径。", deeplHelp: "适合 DeepL 官方翻译接口。", providerPreset: "服务预设", disabledProvider: "待实现", deeplRegion: "DeepL 服务", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "选择官方 DeepL 或自托管 DeepLX；接口地址可手动调整。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
@@ -92,7 +92,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
-    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerOtherCompatible: "その他互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", otherCompatibleHelp: "Anthropic-compatible など非 OpenAI 経路の予約枠です。", deeplHelp: "DeepL 公式翻訳 API 向け。", providerPreset: "サービスプリセット", disabledProvider: "未実装", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free と Pro は API ドメインが異なります。切り替えると endpoint を自動入力します。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
+    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerOtherCompatible: "その他互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", otherCompatibleHelp: "Anthropic-compatible など非 OpenAI 経路の予約枠です。", deeplHelp: "DeepL 公式翻訳 API 向け。", providerPreset: "サービスプリセット", disabledProvider: "未実装", deeplRegion: "DeepL サービス", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "公式 DeepL またはセルフホスト DeepLX を選びます。endpoint は手動調整できます。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
@@ -108,7 +108,7 @@ const UI_TEXT = {
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
-    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerOtherCompatible: "Other-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", otherCompatibleHelp: "Reserved for non-OpenAI protocols such as Anthropic-compatible.", deeplHelp: "For the official DeepL translation API.", providerPreset: "Service preset", disabledProvider: "Not implemented", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free and Pro use different API domains; switching updates the endpoint.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
+    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerOtherCompatible: "Other-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", otherCompatibleHelp: "Reserved for non-OpenAI protocols such as Anthropic-compatible.", deeplHelp: "For the official DeepL translation API.", providerPreset: "Service preset", disabledProvider: "Not implemented", deeplRegion: "DeepL service", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "Choose official DeepL or self-hosted DeepLX; the endpoint can be edited.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
@@ -120,17 +120,113 @@ export const AI_DEFAULT: AiSettings = {
   provider: "openai-compatible",
   openAiPreset: DEFAULT_OPENAI_PRESET,
   anthropicPreset: DEFAULT_ANTHROPIC_PRESET,
-  endpoint: providerPreset(OPENAI_COMPATIBLE_PRESETS, DEFAULT_OPENAI_PRESET).endpoint,
+  endpoint: "",
   apiKey: "",
-  model: providerPreset(OPENAI_COMPATIBLE_PRESETS, DEFAULT_OPENAI_PRESET).modelPlaceholder,
+  model: "",
   prompt: "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}",
-  deeplRegion: "free",
+  deeplRegion: "deepl",
 };
+
+function aiProviderProfileKey(provider: AiProvider, presetOrRegion: string): string {
+  return `${provider}:${presetOrRegion}`;
+}
+
+function activeAiProfileKey(ai: Pick<AiSettings, "provider" | "openAiPreset" | "anthropicPreset" | "deeplRegion">): string {
+  if (ai.provider === "openai-compatible") return aiProviderProfileKey(ai.provider, ai.openAiPreset || DEFAULT_OPENAI_PRESET);
+  if (ai.provider === "anthropic-compatible") return aiProviderProfileKey(ai.provider, ai.anthropicPreset || DEFAULT_ANTHROPIC_PRESET);
+  return aiProviderProfileKey(ai.provider, ai.deeplRegion || "deepl");
+}
+
+function aiSettingsProfile(ai: AiSettings): AiSettingsProfile {
+  return {
+    endpoint: ai.endpoint,
+    apiKey: ai.apiKey,
+    model: ai.model,
+    prompt: ai.prompt,
+  };
+}
+
+function hasMeaningfulAiProfileValue(profile: AiSettingsProfile): boolean {
+  return Boolean(profile.endpoint || profile.apiKey || profile.model || (profile.prompt && profile.prompt !== AI_DEFAULT.prompt));
+}
+
+function rememberActiveAiProfile(ai: AiSettings): AiSettings {
+  const key = activeAiProfileKey(ai);
+  const profile = aiSettingsProfile(ai);
+  if (!hasMeaningfulAiProfileValue(profile) && !ai.profiles?.[key]) return ai;
+  return {
+    ...ai,
+    profiles: {
+      ...(ai.profiles ?? {}),
+      [key]: profile,
+    },
+  };
+}
+
+function openAiPresetDefaults(id: string): Required<AiSettingsProfile> {
+  const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, id);
+  return {
+    endpoint: preset.endpoint,
+    apiKey: "",
+    model: preset.modelPlaceholder,
+    prompt: AI_DEFAULT.prompt,
+  };
+}
+
+function anthropicPresetDefaults(id: string): Required<AiSettingsProfile> {
+  const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, id);
+  return {
+    endpoint: preset.endpoint,
+    apiKey: "",
+    model: preset.modelPlaceholder,
+    prompt: AI_DEFAULT.prompt,
+  };
+}
+
+function deeplDefaults(region: AiSettings["deeplRegion"]): Required<AiSettingsProfile> {
+  return {
+    endpoint: DEEPL_ENDPOINTS[region],
+    apiKey: "",
+    model: "",
+    prompt: AI_DEFAULT.prompt,
+  };
+}
+
+function applyAiProfile(ai: AiSettings, key: string, defaults: Required<AiSettingsProfile>): AiSettings {
+  const profile = ai.profiles?.[key];
+  return {
+    ...ai,
+    endpoint: profile?.endpoint ?? defaults.endpoint,
+    apiKey: profile?.apiKey ?? defaults.apiKey,
+    model: profile?.model ?? defaults.model,
+    prompt: profile?.prompt ?? defaults.prompt,
+  };
+}
+
+export function switchAiSettingsProfile(ai: AiSettings, target: { provider: "openai-compatible"; openAiPreset: string } | { provider: "anthropic-compatible"; anthropicPreset: string } | { provider: "deepl"; deeplRegion: AiSettings["deeplRegion"] }): AiSettings {
+  const saved = rememberActiveAiProfile(ai);
+  if (target.provider === "openai-compatible") {
+    const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, target.openAiPreset);
+    const next = { ...saved, provider: target.provider, openAiPreset: preset.id };
+    return applyAiProfile(next, aiProviderProfileKey(target.provider, preset.id), openAiPresetDefaults(preset.id));
+  }
+  if (target.provider === "anthropic-compatible") {
+    const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, target.anthropicPreset);
+    const next = { ...saved, provider: target.provider, anthropicPreset: preset.id };
+    return applyAiProfile(next, aiProviderProfileKey(target.provider, preset.id), anthropicPresetDefaults(preset.id));
+  }
+  const next = { ...saved, provider: target.provider, deeplRegion: target.deeplRegion };
+  return applyAiProfile(next, aiProviderProfileKey(target.provider, target.deeplRegion), deeplDefaults(target.deeplRegion));
+}
 
 // Persist AI settings (including the API key) to localStorage so the user only
 // configures once per browser. Stored as plaintext — acceptable for a local-only
 // tool but the user should clear the key on a shared device.
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function normalizeDeepLRegion(region: unknown): AiSettings["deeplRegion"] {
+  return region === "deeplx" ? "deeplx" : "deepl";
+}
 
 export function loadAiSettings(storage: StorageLike = window.localStorage): AiSettings {
   try {
@@ -142,6 +238,7 @@ export function loadAiSettings(storage: StorageLike = window.localStorage): AiSe
     if (!["openai-compatible", "anthropic-compatible", "deepl"].includes(merged.provider)) merged.provider = AI_DEFAULT.provider;
     merged.openAiPreset ||= DEFAULT_OPENAI_PRESET;
     merged.anthropicPreset ||= DEFAULT_ANTHROPIC_PRESET;
+    merged.deeplRegion = normalizeDeepLRegion(merged.deeplRegion);
     return merged;
   } catch {
     return AI_DEFAULT;
@@ -249,6 +346,12 @@ function errorDetails(error: unknown): Record<string, unknown> {
   return error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { error: String(error) };
 }
 
+type ProviderHttpErrorLike = Error & { status: number; contentType: string | null; bodyPreview: string };
+
+function isProviderHttpError(error: unknown): error is ProviderHttpErrorLike {
+  return error instanceof OpenAiProviderHttpError || error instanceof DeepLProviderHttpError;
+}
+
 function cloneEntries(entries: TranslationEntry[]): EntriesSnapshot {
   return entries.map((entry) => ({
     ...entry,
@@ -280,6 +383,7 @@ export function App() {
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("Demo workspace loaded");
   const [ai, setAi] = useState<AiSettings>(() => loadAiSettings());
+  const [aiDraft, setAiDraft] = useState<AiSettings | null>(null);
   const [suggestion, setSuggestion] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
@@ -305,9 +409,6 @@ export function App() {
     document.documentElement.lang = uiLanguage;
   }, [uiLanguage]);
   useEffect(() => {
-    saveAiSettings(ai);
-  }, [ai]);
-  useEffect(() => {
     function closeOpenMenus(event: PointerEvent) {
       document.querySelectorAll<HTMLDetailsElement>("details[open]").forEach((details) => {
         if (!details.contains(event.target as Node)) details.removeAttribute("open");
@@ -319,6 +420,38 @@ export function App() {
   function appendDiagnostic(event: string, details: Record<string, unknown> = {}) {
     const line = `${new Date().toISOString()} ${event} ${JSON.stringify(details)}`;
     setDiagnostics((current) => [...current.slice(-999), line]);
+  }
+
+  function describeAiError(error: unknown): Record<string, unknown> {
+    if (isProviderHttpError(error)) {
+      return { status: error.status, contentType: error.contentType, bodyPreview: error.bodyPreview };
+    }
+    if (error instanceof Error) {
+      return { name: error.name, message: error.message };
+    }
+    return { error: String(error) };
+  }
+
+  function aiErrorNotice(provider: AiProvider, error: unknown): string {
+    const base = provider === "deepl" ? "DeepL request failed" : "AI request failed";
+    if (isProviderHttpError(error)) {
+      const serverMessage = extractServerMessage(error.bodyPreview);
+      return serverMessage ? `${base} (HTTP ${error.status}: ${serverMessage})` : `${base} (HTTP ${error.status})`;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return `${base}: ${message}`;
+  }
+
+  function extractServerMessage(bodyPreview: string): string | null {
+    try {
+      const parsed = JSON.parse(bodyPreview) as { message?: unknown; error?: unknown; detail?: unknown };
+      const candidate = parsed.message ?? parsed.error ?? parsed.detail;
+      if (typeof candidate === "string" && candidate.trim().length > 0) return candidate.trim();
+    } catch {
+      // Body wasn't JSON; ignore.
+    }
+    if (bodyPreview.length > 0 && bodyPreview.length < 200) return bodyPreview.trim();
+    return null;
   }
 
   function diagnosticReport() {
@@ -1128,27 +1261,62 @@ export function App() {
     setNotice("CSV mapping updated");
   }
 
+  // The endpoint / model shown in the AI settings modal is considered a
+  // "placeholder" when it matches ANY preset's default or any DeepL region
+  // endpoint. The matching logic lives in providers/placeholder-detect.ts so
+  // it can be unit-tested without React.
   function selectOpenAiPreset(id: string) {
-    const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, id);
-    const previous = providerPreset(OPENAI_COMPATIBLE_PRESETS, ai.openAiPreset);
-    setAi({
-      ...ai,
-      provider: "openai-compatible",
-      openAiPreset: preset.id,
-      endpoint: preset.endpoint,
-      model: !ai.model || ai.model === previous.modelPlaceholder ? preset.modelPlaceholder : ai.model,
-    });
+    setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "openai-compatible", openAiPreset: id }) : current);
   }
 
   function selectAnthropicPreset(id: string) {
-    const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, id);
-    setAi({
-      ...ai,
-      provider: "anthropic-compatible",
-      anthropicPreset: preset.id,
-      endpoint: preset.endpoint,
-      model: !ai.model ? preset.modelPlaceholder : ai.model,
+    setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "anthropic-compatible", anthropicPreset: id }) : current);
+  }
+
+  function updateAiDraft(patch: Partial<AiSettings>) {
+    setAiDraft((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function openAiSettings() {
+    setAiDraft(ai);
+    setModal("ai");
+  }
+
+  function closeAiSettings() {
+    setAiDraft(null);
+    setModal(null);
+  }
+
+  function saveAiDraft() {
+    if (!aiDraft) return;
+    const saved = rememberActiveAiProfile(aiDraft);
+    setAi(saved);
+    saveAiSettings(saved);
+    appendDiagnostic("ai.settings.save", {
+      provider: saved.provider,
+      openAiPreset: saved.openAiPreset,
+      anthropicPreset: saved.anthropicPreset,
+      deeplRegion: saved.deeplRegion,
+      endpoint: saved.endpoint,
+      model: saved.model,
+      hasKey: Boolean(saved.apiKey),
+      promptLength: saved.prompt.length,
     });
+    setAiDraft(null);
+    setModal(null);
+  }
+
+  function aiUsageLabel(settings: AiSettings): string {
+    if (settings.provider === "openai-compatible") {
+      const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, settings.openAiPreset);
+      const model = settings.model.trim() || preset.modelPlaceholder;
+      return model ? `${preset.label} · ${model}` : preset.label;
+    }
+    if (settings.provider === "anthropic-compatible") {
+      const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, settings.anthropicPreset);
+      return `${preset.label} · ${t.disabledProvider}`;
+    }
+    return settings.deeplRegion === "deeplx" ? "DeepLX" : "DeepL";
   }
 
   function aiSettingsReady(): boolean {
@@ -1169,12 +1337,27 @@ export function App() {
 
   async function requestAiTranslation(entry: TranslationEntry, language: string): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
     if (ai.provider === "openai-compatible") {
-      const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language) });
-      return { text: result.text, strippedThink: result.strippedThink };
+      appendDiagnostic("ai.request.start", { endpoint: ai.endpoint, model: ai.model, language, sourceLength: entry.source.length });
+      try {
+        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language) });
+        appendDiagnostic("ai.request.success", { endpoint: ai.endpoint, model: ai.model, language, rawLength: result.raw.length, strippedThink: result.strippedThink });
+        return { text: result.text, strippedThink: result.strippedThink };
+      } catch (error) {
+        appendDiagnostic("ai.request.error", { endpoint: ai.endpoint, model: ai.model, language, ...describeAiError(error) });
+        throw error;
+      }
     }
     if (ai.provider === "deepl") {
-      const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language });
-      return { text: result.text, detectedSource: result.detectedSource };
+      const targetLang = toDeepLTargetLanguage(language);
+      appendDiagnostic("deepl.request.start", { endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion], region: ai.deeplRegion, targetLang, sourceLength: entry.source.length });
+      try {
+        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language });
+        appendDiagnostic("deepl.request.success", { targetLang, detectedSource: result.detectedSource, textLength: result.text.length });
+        return { text: result.text, detectedSource: result.detectedSource };
+      } catch (error) {
+        appendDiagnostic("deepl.request.error", { targetLang, ...describeAiError(error) });
+        throw error;
+      }
     }
     throw new Error("Anthropic-compatible providers are not implemented yet.");
   }
@@ -1193,7 +1376,7 @@ export function App() {
 
   async function generateBatchAi(scope: "all-empty" | "selection") {
     if (!aiSettingsReady()) {
-      setModal("ai");
+      openAiSettings();
       return;
     }
     const targets = emptyAiTargets(scope);
@@ -1218,8 +1401,9 @@ export function App() {
             continue;
           }
           updates.push({ cell: { key: target.entry.key, column: target.language }, value: text });
-        } catch {
+        } catch (error) {
           failed += 1;
+          appendDiagnostic("ai.batch.item.error", { index, language: target.language, sourceLength: target.entry.source.length, ...describeAiError(error) });
         }
       }
       if (updates.length) applyMatrixValues(updates);
@@ -1240,7 +1424,7 @@ export function App() {
       return;
     }
     if (!aiSettingsReady()) {
-      setModal("ai");
+      openAiSettings();
       return;
     }
     setAiBusy(true);
@@ -1250,8 +1434,8 @@ export function App() {
       setSuggestion(result.text);
       if (result.strippedThink) appendDiagnostic("ai.stripped_think", { language: selection.language });
       if (result.detectedSource) appendDiagnostic("deepl.detected_source", { detected: result.detectedSource, requested: toDeepLTargetLanguage(selection.language) });
-    } catch {
-      setNotice(ai.provider === "deepl" ? "DeepL request failed. Check region and API key." : "AI request failed. Check endpoint and model settings.");
+    } catch (error) {
+      setNotice(aiErrorNotice(ai.provider, error));
     } finally {
       setAiBusy(false);
     }
@@ -1302,6 +1486,9 @@ export function App() {
   const tagFilterLabel = project.view.tags.length ? `${t.sourceTags} · ${project.view.tags.length}` : t.sourceTags;
   const wordTagFilterLabel = project.view.wordTags.length ? `${t.wordTags} · ${project.view.wordTags.length}` : t.wordTags;
   const stats = projectStats(project);
+  const aiForm = aiDraft ?? ai;
+  const aiSettingsDirty = aiDraft ? JSON.stringify(aiDraft) !== JSON.stringify(ai) : false;
+  const currentAiUsageLabel = aiUsageLabel(ai);
 
   return (
     <main className="app-shell" onKeyDown={handleUndoRedoShortcut}>
@@ -1323,7 +1510,7 @@ export function App() {
           <Button variant={project.view.forceMissingCells ? "soft" : "ghost"} title={t.forceMissingCells} onClick={() => patchProject({ view: { ...project.view, forceMissingCells: !project.view.forceMissingCells } })}><FilePlus2 size={15} />{t.forceMissingCells}</Button>
           <Button onClick={() => setModal("diagnostics")}><ClipboardList size={15} />{t.diagnostics}</Button>
           <Button onClick={() => setModal("batch")}><ArrowDownUp size={15} />{t.batchReplace}</Button>
-          <Button variant="soft" onClick={() => setModal("ai")}><Bot size={15} />{t.aiSettings}</Button>
+          <Button variant="soft" onClick={openAiSettings}><Bot size={15} />{t.aiSettings}</Button>
           <details className="ui-language-menu">
             <summary className="ui-language-toggle" title={t.uiLanguage}>
               <Languages size={14} />
@@ -1428,6 +1615,7 @@ export function App() {
             <label className="field-label">{t.wordTags}</label>
             <input disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="text-input" value={currentCell?.tags?.join(" ") ?? ""} onChange={(event) => updateWordTags(current.key, selection.language, event.target.value)} placeholder="#review #todo" />
             <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={generateSuggestion} disabled={aiBusy}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{t.generate}</Button></div>
+              <small className="ai-usage-hint">{currentAiUsageLabel}</small>
               <p>{suggestion || t.aiEmpty}</p>
               <Button variant="soft" disabled={!suggestion} onClick={() => { updateCell(current.key, selection.language, suggestion); setSuggestion(""); }}><Check size={14} />{t.applySuggestion}</Button>
             </section>
@@ -1447,67 +1635,67 @@ export function App() {
       <input hidden multiple ref={fileInput} type="file" accept=".po,.pot,.csv" onChange={async (event) => { const files = await Promise.all([...event.target.files ?? []].map(async (file) => ({ name: file.name, path: "", content: await file.text() }))); event.target.value = ""; if (pendingProjectConfig.current) { const config = pendingProjectConfig.current; pendingProjectConfig.current = null; restoreProject(config, files); } else importDocuments(files); }} />
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />
 
-      {modal === "ai" ? <ModalFrame title={t.aiSuggestionSettings} className="ai-settings-modal" close={() => setModal(null)}><div className="ai-settings-panel">
+      {modal === "ai" ? <ModalFrame title={t.aiSuggestionSettings} className="ai-settings-modal" close={closeAiSettings}><div className="ai-settings-panel">
         <section className="ai-settings-card">
           <div className="ai-card-heading"><strong>{t.provider}</strong><span>{t.providerHelp}</span></div>
           <fieldset className="provider-switch ai-segmented">
             <legend>{t.provider}</legend>
-            <label className={ai.provider === "openai-compatible" ? "active" : ""}>
-              <input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => selectOpenAiPreset(ai.openAiPreset)} />
+            <label className={aiForm.provider === "openai-compatible" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="openai-compatible" checked={aiForm.provider === "openai-compatible"} onChange={() => selectOpenAiPreset(aiForm.openAiPreset)} />
               <i className="ai-option-dot" aria-hidden="true" />
               <span className="ai-option-text"><b>{t.providerOpenAi}</b><small>{t.openAiHelp}</small></span>
             </label>
-            <label className={ai.provider === "anthropic-compatible" ? "active" : ""}>
-              <input type="radio" name="ai-provider" value="anthropic-compatible" checked={ai.provider === "anthropic-compatible"} onChange={() => selectAnthropicPreset(ai.anthropicPreset)} />
+            <label className={aiForm.provider === "anthropic-compatible" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="anthropic-compatible" checked={aiForm.provider === "anthropic-compatible"} onChange={() => selectAnthropicPreset(aiForm.anthropicPreset)} />
               <i className="ai-option-dot" aria-hidden="true" />
               <span className="ai-option-text"><b>{t.providerOtherCompatible}</b><small>{t.otherCompatibleHelp}</small></span>
             </label>
-            <label className={ai.provider === "deepl" ? "active" : ""}>
-              <input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: DEEPL_ENDPOINTS[ai.deeplRegion] })} />
+            <label className={aiForm.provider === "deepl" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="deepl" checked={aiForm.provider === "deepl"} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: current.deeplRegion }) : current)} />
               <i className="ai-option-dot" aria-hidden="true" />
               <span className="ai-option-text"><b>{t.providerDeepl}</b><small>{t.deeplHelp}</small></span>
             </label>
           </fieldset>
         </section>
         <section className="ai-settings-card">
-          <div className="ai-card-heading"><strong>{ai.provider === "deepl" ? t.providerDeepl : ai.provider === "anthropic-compatible" ? t.providerOtherCompatible : t.credentials}</strong><span>{ai.provider === "deepl" ? t.deeplRegionHelp : t.promptHelp}</span></div>
-          {ai.provider === "openai-compatible" ? <div className="ai-form-grid">
+          <div className="ai-card-heading"><strong>{aiForm.provider === "deepl" ? t.providerDeepl : aiForm.provider === "anthropic-compatible" ? t.providerOtherCompatible : t.credentials}</strong><span>{aiForm.provider === "deepl" ? t.deeplRegionHelp : t.promptHelp}</span></div>
+          {aiForm.provider === "openai-compatible" ? <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
               <legend>{t.providerPreset}</legend>
-              {OPENAI_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${ai.openAiPreset === preset.id ? "active" : ""}${preset.warning ? " warning" : ""}`}>
-                <input type="radio" name="openai-preset" value={preset.id} checked={ai.openAiPreset === preset.id} onChange={() => selectOpenAiPreset(preset.id)} />
+              {OPENAI_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${aiForm.openAiPreset === preset.id ? "active" : ""}${preset.warning ? " warning" : ""}`}>
+                <input type="radio" name="openai-preset" value={preset.id} checked={aiForm.openAiPreset === preset.id} onChange={() => selectOpenAiPreset(preset.id)} />
                 <i className="ai-option-dot" aria-hidden="true" />
                 <span className="ai-option-text"><b>{preset.label}</b><small>{preset.warning ?? preset.description}</small></span>
               </label>)}
             </fieldset>
-            <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
-            <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
-            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder={providerPreset(OPENAI_COMPATIBLE_PRESETS, ai.openAiPreset).apiKeyPlaceholder} /></label>
-            <label className="ai-field-full">{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
-          </div> : ai.provider === "anthropic-compatible" ? <div className="ai-form-grid">
+            <label>{t.apiEndpoint}<input value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
+            <label>{t.model}<input value={aiForm.model} onChange={(event) => updateAiDraft({ model: event.target.value })} placeholder="model-name" /></label>
+            <label>{t.apiKey}<input type="password" value={aiForm.apiKey} onChange={(event) => updateAiDraft({ apiKey: event.target.value })} onCopy={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); }} onCut={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); updateAiDraft({ apiKey: "" }); }} placeholder={providerPreset(OPENAI_COMPATIBLE_PRESETS, aiForm.openAiPreset).apiKeyPlaceholder} /></label>
+            <label className="ai-field-full">{t.promptTemplate}<textarea value={aiForm.prompt} onChange={(event) => updateAiDraft({ prompt: event.target.value })} /></label>
+          </div> : aiForm.provider === "anthropic-compatible" ? <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
               <legend>{t.providerPreset}</legend>
-              {ANTHROPIC_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${ai.anthropicPreset === preset.id ? "active" : ""} disabled-option`}>
-                <input type="radio" name="anthropic-preset" value={preset.id} checked={ai.anthropicPreset === preset.id} onChange={() => selectAnthropicPreset(preset.id)} />
+              {ANTHROPIC_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${aiForm.anthropicPreset === preset.id ? "active" : ""} disabled-option`}>
+                <input type="radio" name="anthropic-preset" value={preset.id} checked={aiForm.anthropicPreset === preset.id} onChange={() => selectAnthropicPreset(preset.id)} />
                 <i className="ai-option-dot" aria-hidden="true" />
                 <span className="ai-option-text"><b>{preset.label} · {t.disabledProvider}</b><small>{preset.description}</small></span>
               </label>)}
             </fieldset>
-            <label>{t.apiEndpoint}<input disabled value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).endpoint} /></label>
-            <label>{t.model}<input disabled value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).modelPlaceholder} /></label>
-            <label>{t.apiKey}<input disabled type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).apiKeyPlaceholder} /></label>
-            <label className="ai-field-full">{t.promptTemplate}<textarea disabled value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
+            <label>{t.apiEndpoint}<input disabled value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, aiForm.anthropicPreset).endpoint} /></label>
+            <label>{t.model}<input disabled value={aiForm.model} onChange={(event) => updateAiDraft({ model: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, aiForm.anthropicPreset).modelPlaceholder} /></label>
+            <label>{t.apiKey}<input disabled type="password" value={aiForm.apiKey} onChange={(event) => updateAiDraft({ apiKey: event.target.value })} onCopy={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); }} onCut={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); updateAiDraft({ apiKey: "" }); }} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, aiForm.anthropicPreset).apiKeyPlaceholder} /></label>
+            <label className="ai-field-full">{t.promptTemplate}<textarea disabled value={aiForm.prompt} onChange={(event) => updateAiDraft({ prompt: event.target.value })} /></label>
           </div> : <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-field-full">
               <legend>{t.deeplRegion}</legend>
-              <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.free}</small></span></label>
-              <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.pro}</small></span></label>
+              <label className={aiForm.deeplRegion === "deepl" ? "active" : ""}><input type="radio" name="deepl-region" value="deepl" checked={aiForm.deeplRegion === "deepl"} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: "deepl" }) : current)} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.deepl}</small></span></label>
+              <label className={aiForm.deeplRegion === "deeplx" ? "active" : ""}><input type="radio" name="deepl-region" value="deeplx" checked={aiForm.deeplRegion === "deeplx"} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: "deeplx" }) : current)} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.deeplx}</small></span></label>
             </fieldset>
-            <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[ai.deeplRegion]} /></label>
-            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
+            <label>{t.apiEndpoint}<input value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[aiForm.deeplRegion]} /></label>
+            <label>{t.apiKey}<input type="password" value={aiForm.apiKey} onChange={(event) => updateAiDraft({ apiKey: event.target.value })} onCopy={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); }} onCut={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); updateAiDraft({ apiKey: "" }); }} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
           </div>}
         </section>
-        <footer className="ai-settings-actions"><Button variant="primary" onClick={() => setModal(null)}>{t.done}</Button></footer>
+        <footer className="ai-settings-actions"><Button variant="primary" dirty={aiSettingsDirty} onClick={saveAiDraft}>{t.done}</Button></footer>
       </div></ModalFrame> : null}
 
       {modal === "batch" ? <ModalFrame title={t.batchReplace} close={() => setModal(null)}><div className="form-grid">
