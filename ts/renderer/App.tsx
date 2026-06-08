@@ -68,7 +68,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
-    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerDeepl: "DeepL", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", done: "完成",
+    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", deeplHelp: "适合 DeepL 官方翻译接口。", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", deeplRegionHelp: "Free 与 Pro 使用不同 API 域名，切换后会自动填入端点。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
@@ -84,7 +84,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
-    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerDeepl: "DeepL", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", done: "完了",
+    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", deeplHelp: "DeepL 公式翻訳 API 向け。", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free と Pro は API ドメインが異なります。切り替えると endpoint を自動入力します。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
@@ -100,7 +100,7 @@ const UI_TEXT = {
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
-    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerDeepl: "DeepL", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", done: "Done",
+    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", deeplHelp: "For the official DeepL translation API.", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free and Pro use different API domains; switching updates the endpoint.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
@@ -196,10 +196,10 @@ function Button({
   );
 }
 
-function ModalFrame({ title, children, close }: { title: string; children: React.ReactNode; close: () => void }) {
+function ModalFrame({ title, children, close, className = "" }: { title: string; children: React.ReactNode; close: () => void; className?: string }) {
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <section className="modal" onMouseDown={(event) => event.stopPropagation()}>
+      <section className={`modal ${className}`} onMouseDown={(event) => event.stopPropagation()}>
         <header><h2>{title}</h2><button className="icon-button" onClick={close}><X size={16} /></button></header>
         {children}
       </section>
@@ -1048,25 +1048,39 @@ export function App() {
       <input hidden multiple ref={fileInput} type="file" accept=".po,.pot,.csv" onChange={async (event) => { const files = await Promise.all([...event.target.files ?? []].map(async (file) => ({ name: file.name, path: "", content: await file.text() }))); event.target.value = ""; if (pendingProjectConfig.current) { const config = pendingProjectConfig.current; pendingProjectConfig.current = null; restoreProject(config, files); } else importDocuments(files); }} />
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />
 
-      {modal === "ai" ? <ModalFrame title={t.aiSuggestionSettings} close={() => setModal(null)}><div className="form-grid">
-        <fieldset className="provider-switch"><legend>{t.provider}</legend>
-          <label className={ai.provider === "openai-compatible" ? "active" : ""}><input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => setAi({ ...ai, provider: "openai-compatible" })} />{t.providerOpenAi}</label>
-          <label className={ai.provider === "deepl" ? "active" : ""}><input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion] })} />{t.providerDeepl}</label>
-        </fieldset>
-        {ai.provider === "openai-compatible" ? <>
-          <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
-          <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
-          <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="Stored in this browser via localStorage" /></label>
-          <label>{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
-        </> : <>
-          <fieldset className="provider-switch"><legend>{t.deeplRegion}</legend>
-            <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} />{t.deeplFree}</label>
-            <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} />{t.deeplPro}</label>
+      {modal === "ai" ? <ModalFrame title={t.aiSuggestionSettings} className="ai-settings-modal" close={() => setModal(null)}><div className="ai-settings-panel">
+        <section className="ai-settings-card">
+          <div className="ai-card-heading"><strong>{t.provider}</strong><span>{t.providerHelp}</span></div>
+          <fieldset className="provider-switch ai-segmented">
+            <legend>{t.provider}</legend>
+            <label className={ai.provider === "openai-compatible" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => setAi({ ...ai, provider: "openai-compatible" })} />
+              <span><b>{t.providerOpenAi}</b><small>{t.openAiHelp}</small></span>
+            </label>
+            <label className={ai.provider === "deepl" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion] })} />
+              <span><b>{t.providerDeepl}</b><small>{t.deeplHelp}</small></span>
+            </label>
           </fieldset>
-          <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[ai.deeplRegion]} /></label>
-          <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
-        </>}
-        <Button variant="primary" onClick={() => setModal(null)}>{t.done}</Button>
+        </section>
+        <section className="ai-settings-card">
+          <div className="ai-card-heading"><strong>{ai.provider === "deepl" ? t.providerDeepl : t.credentials}</strong><span>{ai.provider === "deepl" ? t.deeplRegionHelp : t.promptHelp}</span></div>
+          {ai.provider === "openai-compatible" ? <div className="ai-form-grid">
+            <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
+            <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
+            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="Stored in this browser via localStorage" /></label>
+            <label className="ai-field-full">{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
+          </div> : <div className="ai-form-grid">
+            <fieldset className="provider-switch ai-segmented ai-field-full">
+              <legend>{t.deeplRegion}</legend>
+              <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} /><span><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.free}</small></span></label>
+              <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} /><span><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.pro}</small></span></label>
+            </fieldset>
+            <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[ai.deeplRegion]} /></label>
+            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
+          </div>}
+        </section>
+        <footer className="ai-settings-actions"><Button variant="primary" onClick={() => setModal(null)}>{t.done}</Button></footer>
       </div></ModalFrame> : null}
 
       {modal === "batch" ? <ModalFrame title={t.batchReplace} close={() => setModal(null)}><div className="form-grid">

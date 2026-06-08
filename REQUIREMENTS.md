@@ -301,6 +301,11 @@
     - [x] `toDeepLTargetLanguage` 映射常见 PO 语言代码到 DeepL 期望大写（zh-CN→ZH-HANS、en-GB→EN-GB、pt-BR→PT-BR 等）
     - [x] `requestDeepLTranslation` 返回 `{ text, detectedSource? }`
     - [x] `ts/tests/providers.test.ts` 覆盖 DeepL 语言代码映射（zh / ja / en / pt / 大小写 / 空白 / 未知 fallback）
+  - [x] [AI-A-013] AI 设置弹窗按视觉规范优化 #ui #P1
+    - [x] provider 使用低噪声分段卡片，显示服务说明而不是裸 radio
+    - [x] OpenAI 兼容与 DeepL 配置按卡片分区展示，避免表单堆叠感
+    - [x] DeepL Free / Pro 区域选择沿用同一分段控件，并显示对应 endpoint
+    - [x] prompt template 使用全宽输入区域，并说明 `{{language}}` 与 `{{source}}` 占位符
 
 ### BATCH-A：轻量批处理
 

@@ -115,6 +115,30 @@ code { display: block; overflow: hidden; color: #71717a; font-size: 11px; text-o
 .form-grid, .column-list { display: grid; gap: 12px; padding: 15px; }
 .form-grid label { display: grid; gap: 6px; color: #71717a; font-size: 11px; font-weight: 650; }
 .form-grid textarea { min-height: 90px; padding: 8px; resize: vertical; }
+.modal.ai-settings-modal { width: min(760px, 92vw); }
+.ai-settings-panel { display: grid; gap: 12px; padding: 15px; }
+.ai-settings-card { display: grid; gap: 12px; padding: 13px; border: 1px solid #e4e4e7; border-radius: 9px; background: #fafafa; }
+.ai-card-heading { display: grid; gap: 3px; }
+.ai-card-heading strong { color: #27272a; font-size: 12px; }
+.ai-card-heading span { color: #71717a; font-size: 11px; line-height: 1.45; }
+.provider-switch { margin: 0; padding: 0; border: 0; }
+.provider-switch legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ai-segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ai-segmented label { display: flex; gap: 8px; align-items: flex-start; min-height: 54px; padding: 10px; border: 1px solid #e4e4e7; border-radius: 8px; color: #52525b; background: #fff; cursor: pointer; }
+.ai-segmented label:hover { border-color: #c7d2fe; background: #f8faff; }
+.ai-segmented label.active { border-color: #a5b4fc; color: #3730a3; background: #eef2ff; box-shadow: inset 0 0 0 1px #c7d2fe; }
+.ai-segmented input { margin-top: 2px; accent-color: #635bff; }
+.ai-segmented span { display: grid; gap: 3px; min-width: 0; }
+.ai-segmented b { color: inherit; font-size: 12px; }
+.ai-segmented small { overflow: hidden; color: #71717a; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; }
+.ai-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ai-form-grid label { display: grid; gap: 6px; color: #71717a; font-size: 11px; font-weight: 650; }
+.ai-form-grid input, .ai-form-grid textarea { width: 100%; border: 1px solid #dedee3; border-radius: 6px; outline: 0; color: #27272a; background: #fff; }
+.ai-form-grid input { height: 34px; padding: 0 9px; }
+.ai-form-grid textarea { min-height: 132px; padding: 9px; resize: vertical; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ai-form-grid input:focus, .ai-form-grid textarea:focus { border-color: #a5b4fc; box-shadow: 0 0 0 3px #e0e7ff; }
+.ai-field-full { grid-column: 1 / -1; }
+.ai-settings-actions { display: flex; justify-content: flex-end; }
 .diagnostic-log textarea { min-height: 360px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
 .diagnostic-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .match-count { margin: 0; color: #635bff; font-size: 12px; font-weight: 650; }
