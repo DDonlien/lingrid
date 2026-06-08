@@ -39,6 +39,7 @@ Options               选项          Options         オプション      #revi
 - 支持简单统计：条目数、各语言完成率、未翻译数量、tag 数量、changed 数量。
 - 支持简单 AI / 翻译 API 建议：配置 endpoint、key、model、prompt 后，对当前单元格请求翻译建议。
 - 支持简单批量查找与替换。
+- 支持类似 Excel 的矩阵多选、批量复制粘贴、批量填写，以及 `Ctrl/Cmd+Z` 撤销和 `Ctrl/Cmd+Shift+Z` 重做；Source Tag 单元格也支持同等操作。
 - 应用界面支持中文、日文和英文切换。
 
 ## 文件处理边界

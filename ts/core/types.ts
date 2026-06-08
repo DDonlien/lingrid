@@ -65,10 +65,12 @@ export interface LingridProject {
   projectFileHandle?: FileSystemFileHandle;
 }
 
-export type AiProvider = "openai-compatible" | "deepl";
+export type AiProvider = "openai-compatible" | "anthropic-compatible" | "deepl";
 
 export interface AiSettings {
   provider: AiProvider;
+  openAiPreset: string;
+  anthropicPreset: string;
   endpoint: string;
   apiKey: string;
   model: string;

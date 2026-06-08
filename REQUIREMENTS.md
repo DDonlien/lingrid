@@ -306,6 +306,36 @@
     - [x] OpenAI 兼容与 DeepL 配置按卡片分区展示，避免表单堆叠感
     - [x] DeepL Free / Pro 区域选择沿用同一分段控件，并显示对应 endpoint
     - [x] prompt template 使用全宽输入区域，并说明 `{{language}}` 与 `{{source}}` 占位符
+    - [x] 设置内容超过视口高度时，弹窗内容区可上下滚动，标题栏保持可见
+- [x] [AI-A-020] 扩展 AI provider 设置结构 #feature #P1
+  - [x] [AI-A-021] 保持顶层 provider 结构：`OpenAI 兼容`、`其他兼容`、`单独 Provider`，其中 `DeepL` 作为单独 Provider 保留
+  - [x] [AI-A-022] `OpenAI 兼容` 下提供预设选项，至少覆盖：`OpenAI`、`Kimi / Moonshot`、`MiniMax`、`通义千问 / DashScope`、`豆包 / 火山方舟`、`Gemini`、`Claude OpenAI SDK compatibility`、`自定义 OpenAI 兼容`
+    - [x] 每个预设应保存：显示名称、协议类型、默认 endpoint/baseURL、默认 model placeholder、API key placeholder、简短差异说明
+    - [x] 预设切换时自动填入 endpoint/baseURL 与 model placeholder，但不覆盖用户已经输入的 API key
+    - [x] `Claude OpenAI SDK compatibility` 必须提示：官方说明该兼容层主要用于测试/对比能力，长期生产优先使用 Claude native API
+  - [x] [AI-A-023] `其他兼容` 下提供非 OpenAI 兼容路径，至少预留：`Anthropic / Claude native`、`MiniMax Anthropic-compatible`、`自定义 Anthropic-compatible`
+    - [x] 这些路径在未实现 adapter 前应显示“待实现”或禁用状态，不允许用户误以为已经可调用
+  - [x] [AI-A-024] provider 展开区沿用顶层 provider 的视觉结构，不再使用原生 radio 或未美化的按钮
+  - [x] [AI-A-025] provider 来源调研基准记录：
+    - [x] Kimi / Moonshot：官方文档说明支持 OpenAI-compatible HTTP API
+    - [x] MiniMax：官方说明同时存在 OpenAI-Compatible API 与 Anthropic-Compatible API
+    - [x] 通义千问 / DashScope：阿里云百炼提供 OpenAI 兼容 Chat Completions
+    - [x] 豆包 / 火山方舟：火山方舟文档提供兼容 OpenAI SDK 的调用方式
+    - [x] Gemini：Google Gemini API 提供 OpenAI compatibility endpoint
+    - [x] Claude：Anthropic 提供 OpenAI SDK compatibility，同时也有 Claude native API
+- [x] [AI-A-030] 确认 prompt template 变量真实生效 #qa #P1
+  - [x] [AI-A-031] `{{language}}` 必须替换为当前目标单元格所在语言列的 language/display label，优先使用用户设置的语言显示名，缺失时使用内部 language id
+  - [x] [AI-A-032] `{{source}}` 必须替换为当前行的 source 文本
+  - [x] [AI-A-033] 单单元格 AI 建议、多选 AI 翻译、空单元格批量 AI 翻译都必须走同一套变量渲染逻辑
+  - [x] [AI-A-034] 增加测试覆盖：不同语言列、不同 source 行、多选/批量场景下 `{{language}}` 与 `{{source}}` 渲染正确
+- [x] [AI-A-040] 支持 AI 翻译批量填充 #feature #P1
+  - [x] [AI-A-041] 当没有选中具体翻译单元格时，点击 AI 翻译/生成应翻译全部可编辑的空置译文单元格，并直接写入对应单元格
+    - [x] 不处理 source 列、tag 列、不可编辑缺失条目、已有译文的单元格和 `.pot` 只读内容
+    - [x] 批量写入后的单元格标记为 changed，便于用户通过已修改状态逐项检查
+  - [x] [AI-A-042] 当选中了多个翻译单元格时，点击 AI 翻译/生成应只处理选中范围内可编辑的空置译文单元格，并直接写入对应单元格
+    - [x] 选区内已有译文默认不覆盖；后续如需要覆盖，应另设明确开关
+  - [x] [AI-A-043] 批量 AI 翻译需要显示进度、成功数、跳过数和失败数；失败不应中断已成功写入的单元格
+  - [x] [AI-A-044] 批量 AI 翻译不得把 API key、source 原文或译文内容写入 agent-log 或诊断日志
 
 ### BATCH-A：轻量批处理
 
@@ -322,20 +352,29 @@
 
 ### BATCH-B：矩阵多选与批量填写
 
-- [ ] [BATCH-B-000] 实现类似 Excel 的矩阵多选与批量编辑 #feature #P1
-  - [ ] [BATCH-B-001] 按住 `Shift` 并点击鼠标左键时，可选中多个单元格
-    - [ ] 多选状态有清晰、低噪声的视觉反馈
-    - [ ] 点击未选中的其他位置时，退出原多选状态并切换当前单元格
-  - [ ] [BATCH-B-002] 支持对已选单元格批量复制和粘贴
-    - [ ] 复制和粘贴行为参考 Excel 的矩阵操作方式
-    - [ ] 粘贴后将实际发生变化的单元格标记为 changed
-  - [ ] [BATCH-B-003] 支持对已选单元格批量填写相同内容
-    - [ ] 在多选范围内任一单元格输入内容后，按 `Enter` 或 `Tab` 将相同内容填写到全部已选单元格
-    - [ ] 在多选范围内任一单元格输入内容后，点击其他位置时只提交当前编辑单元格，不批量填写
-    - [ ] 批量填写后将实际发生变化的单元格标记为 changed
-  - [ ] [BATCH-B-004] tag 单元格支持相同的多选、批量复制、批量粘贴和批量填写行为
-    - [ ] tag 批量修改后保持 entry 级共享语义
-    - [ ] tag 批量修改后标记项目状态为未保存
+- [x] [BATCH-B-000] 实现类似 Excel 的矩阵多选与批量编辑 #feature #P1
+  - [x] [BATCH-B-001] 按住 `Shift` 并点击鼠标左键时，可选中多个单元格
+    - [x] 多选状态有清晰、低噪声的视觉反馈
+    - [x] 点击未选中的其他位置时，退出原多选状态并切换当前单元格
+  - [x] [BATCH-B-002] 支持对已选单元格批量复制和粘贴
+    - [x] 复制和粘贴行为参考 Excel 的矩阵操作方式
+    - [x] 粘贴后将实际发生变化的单元格标记为 changed
+  - [x] [BATCH-B-003] 支持对已选单元格批量填写相同内容
+    - [x] 在多选范围内任一单元格输入内容后，按 `Enter` 或 `Tab` 将相同内容填写到全部已选单元格
+    - [x] 在多选范围内任一单元格输入内容后，点击其他位置时只提交当前编辑单元格，不批量填写
+    - [x] 批量填写后将实际发生变化的单元格标记为 changed
+  - [x] [BATCH-B-004] tag 单元格支持相同的多选、批量复制、批量粘贴和批量填写行为
+    - [x] tag 批量修改后保持 entry 级共享语义
+    - [x] tag 批量修改后标记项目状态为未保存
+  - [x] [BATCH-B-005] 支持矩阵编辑撤销与重做
+    - [x] `Ctrl/Cmd+Z` 撤销已提交的单元格、批量填写、批量粘贴、Source Tag 和 Word Tag 修改
+    - [x] `Ctrl/Cmd+Shift+Z` 重做上述撤销操作
+    - [x] 正在输入但尚未提交的译文草稿保留浏览器文本框自身的撤销行为
+    - [x] 打开或导入新项目后清空上一项目的撤销/重做历史
+- [ ] [BATCH-B-010] 点击矩阵单元格以外的位置时取消当前单元格选择 #ux #P1
+  - [x] [BATCH-B-011] 点击空白表头、矩阵外空白区域或非单元格 UI 时，清空当前单元格 selection 与多选 selection
+  - [x] [BATCH-B-012] 取消选择后，详情编辑器进入未选择状态
+  - [ ] [BATCH-B-013] 取消选择后，AI 翻译/生成按钮进入“无单元格选中”的批量空单元格模式
 
 ### QA-A：Phase 1（v0.1）验证
 

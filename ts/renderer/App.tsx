@@ -23,15 +23,19 @@ import {
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
+import { renderAiPromptTemplate } from "../core/ai";
 import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
 import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
 import type { AiProvider, AiSettings, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { DEEPL_ENDPOINTS, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
 import { requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
+import { ANTHROPIC_COMPATIBLE_PRESETS, OPENAI_COMPATIBLE_PRESETS, providerPreset } from "./providers/presets";
 import { createDemoProject } from "./demo";
 
 type Modal = "ai" | "batch" | "files" | "csv" | "diagnostics" | null;
 type Selection = { key: string; language: string } | null;
+type MatrixCellSelection = { key: string; column: string };
+type EntriesSnapshot = TranslationEntry[];
 type UiLanguage = "zh" | "ja" | "en";
 type ProjectConfig = {
   files?: Array<Pick<SourceDocument, "path" | "name" | "type" | "language" | "csvMapping">>;
@@ -45,14 +49,18 @@ type ProjectConfig = {
 type BrowserSourceFile = { name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle };
 type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "download"; fileCount: number } | { kind: "error"; message: string };
 const cellDraftKey = (entryKey: string, language: string) => `${entryKey}\u0001${language}`;
+const matrixCellKey = (entryKey: string, column: string) => `${entryKey}\u0001${column}`;
 const SOURCE_COLUMN = "$source";
 const TAGS_COLUMN = "$tags";
 const DEFAULT_COLUMN_WIDTHS = { [SOURCE_COLUMN]: 250, [TAGS_COLUMN]: 150 };
 const DEFAULT_LANGUAGE_WIDTH = 175;
 const MIN_COLUMN_WIDTH = 96;
 const MAX_COLUMN_WIDTH = 640;
+const MAX_HISTORY_STEPS = 100;
 const UI_LANGUAGE_KEY = "lingrid-ui-language";
 const AI_SETTINGS_KEY = "lingrid-ai-settings";
+const DEFAULT_OPENAI_PRESET = "openai";
+const DEFAULT_ANTHROPIC_PRESET = "claude-native";
 const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
@@ -68,7 +76,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
-    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", deeplHelp: "适合 DeepL 官方翻译接口。", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", deeplRegionHelp: "Free 与 Pro 使用不同 API 域名，切换后会自动填入端点。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
+    aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerOtherCompatible: "其他兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", otherCompatibleHelp: "预留 Anthropic-compatible 等非 OpenAI 路径。", deeplHelp: "适合 DeepL 官方翻译接口。", providerPreset: "服务预设", disabledProvider: "待实现", deeplRegion: "DeepL 区域", deeplFree: "免费版", deeplPro: "专业版", deeplRegionHelp: "Free 与 Pro 使用不同 API 域名，切换后会自动填入端点。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
     find: "查找", replaceWith: "替换为", scope: "范围", currentLanguage: "当前语言", applyReplacement: "应用替换", matchesFound: "处匹配",
     renameLanguageColumns: "重命名语言列", csvColumnMapping: "CSV 列映射", sourceColumn: "Source 列", optionalKeyColumn: "可选 id/key 列",
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
@@ -84,7 +92,7 @@ const UI_TEXT = {
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
-    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", deeplHelp: "DeepL 公式翻訳 API 向け。", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free と Pro は API ドメインが異なります。切り替えると endpoint を自動入力します。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
+    aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerOtherCompatible: "その他互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", otherCompatibleHelp: "Anthropic-compatible など非 OpenAI 経路の予約枠です。", deeplHelp: "DeepL 公式翻訳 API 向け。", providerPreset: "サービスプリセット", disabledProvider: "未実装", deeplRegion: "DeepL リージョン", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free と Pro は API ドメインが異なります。切り替えると endpoint を自動入力します。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
     find: "検索", replaceWith: "置換後", scope: "範囲", currentLanguage: "現在の言語", applyReplacement: "置換を適用", matchesFound: "件一致",
     renameLanguageColumns: "言語列名を変更", csvColumnMapping: "CSV 列マッピング", sourceColumn: "Source 列", optionalKeyColumn: "任意の id/key 列",
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
@@ -100,7 +108,7 @@ const UI_TEXT = {
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
-    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", deeplHelp: "For the official DeepL translation API.", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free and Pro use different API domains; switching updates the endpoint.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
+    aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerOtherCompatible: "Other-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", otherCompatibleHelp: "Reserved for non-OpenAI protocols such as Anthropic-compatible.", deeplHelp: "For the official DeepL translation API.", providerPreset: "Service preset", disabledProvider: "Not implemented", deeplRegion: "DeepL region", deeplFree: "Free", deeplPro: "Pro", deeplRegionHelp: "Free and Pro use different API domains; switching updates the endpoint.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
     find: "Find", replaceWith: "Replace with", scope: "Scope", currentLanguage: "Current language", applyReplacement: "Apply replacement", matchesFound: "matches found",
     renameLanguageColumns: "Rename language columns", csvColumnMapping: "CSV column mapping", sourceColumn: "Source column", optionalKeyColumn: "Optional id/key column",
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
@@ -110,9 +118,11 @@ const UI_TEXT = {
 } as const;
 export const AI_DEFAULT: AiSettings = {
   provider: "openai-compatible",
-  endpoint: "",
+  openAiPreset: DEFAULT_OPENAI_PRESET,
+  anthropicPreset: DEFAULT_ANTHROPIC_PRESET,
+  endpoint: providerPreset(OPENAI_COMPATIBLE_PRESETS, DEFAULT_OPENAI_PRESET).endpoint,
   apiKey: "",
-  model: "",
+  model: providerPreset(OPENAI_COMPATIBLE_PRESETS, DEFAULT_OPENAI_PRESET).modelPlaceholder,
   prompt: "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}",
   deeplRegion: "free",
 };
@@ -128,7 +138,11 @@ export function loadAiSettings(storage: StorageLike = window.localStorage): AiSe
     if (!raw) return AI_DEFAULT;
     const parsed = JSON.parse(raw) as Partial<AiSettings>;
     // Merge over defaults so older stored entries missing new fields keep working.
-    return { ...AI_DEFAULT, ...parsed };
+    const merged = { ...AI_DEFAULT, ...parsed };
+    if (!["openai-compatible", "anthropic-compatible", "deepl"].includes(merged.provider)) merged.provider = AI_DEFAULT.provider;
+    merged.openAiPreset ||= DEFAULT_OPENAI_PRESET;
+    merged.anthropicPreset ||= DEFAULT_ANTHROPIC_PRESET;
+    return merged;
   } catch {
     return AI_DEFAULT;
   }
@@ -235,6 +249,19 @@ function errorDetails(error: unknown): Record<string, unknown> {
   return error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { error: String(error) };
 }
 
+function cloneEntries(entries: TranslationEntry[]): EntriesSnapshot {
+  return entries.map((entry) => ({
+    ...entry,
+    tags: [...entry.tags],
+    translations: Object.fromEntries(
+      Object.entries(entry.translations).map(([language, cell]) => [
+        language,
+        { ...cell, tags: cell.tags ? [...cell.tags] : undefined },
+      ]),
+    ),
+  }));
+}
+
 function FilterMenu({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
   return <details className="filter-menu"><summary className={`filter-toggle ${active ? "active" : ""}`}><Filter size={14} />{label}</summary><div className="filter-popover">{children}</div></details>;
 }
@@ -248,6 +275,8 @@ export function App() {
   const t = UI_TEXT[uiLanguage];
   const [project, setProject] = useState<LingridProject>(() => createDemoProject());
   const [selection, setSelection] = useState<Selection>({ key: "demo\u0000menu.start", language: "ja" });
+  const [activeMatrixCell, setActiveMatrixCell] = useState<MatrixCellSelection | null>({ key: "demo\u0000menu.start", column: "ja" });
+  const [selectedMatrixCells, setSelectedMatrixCells] = useState<MatrixCellSelection[]>([{ key: "demo\u0000menu.start", column: "ja" }]);
   const [modal, setModal] = useState<Modal>(null);
   const [notice, setNotice] = useState("Demo workspace loaded");
   const [ai, setAi] = useState<AiSettings>(() => loadAiSettings());
@@ -256,6 +285,8 @@ export function App() {
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
   const [csvDraft, setCsvDraft] = useState({ documentId: "", sourceColumn: "", keyColumn: "", languages: "" });
   const [cellDrafts, setCellDrafts] = useState<Record<string, string>>({});
+  const [undoStack, setUndoStack] = useState<EntriesSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<EntriesSnapshot[]>([]);
   const [sourceSaveStatus, setSourceSaveStatus] = useState<SourceSaveStatus>({ kind: "idle" });
   const [draggedLanguage, setDraggedLanguage] = useState<string | null>(null);
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
@@ -313,6 +344,8 @@ export function App() {
     },
     [project, deferredSearch],
   );
+  const matrixColumns = useMemo(() => [...project.columnOrder, TAGS_COLUMN], [project.columnOrder]);
+  const selectedMatrixCellIds = useMemo(() => new Set(selectedMatrixCells.map((cell) => matrixCellKey(cell.key, cell.column))), [selectedMatrixCells]);
   const current = project.entries.find((entry) => entry.key === selection?.key);
   const currentCell = selection && current?.translations[selection.language];
   const changedCount = project.entries.reduce(
@@ -352,28 +385,261 @@ export function App() {
     setProject((value) => ({ ...value, ...patch }));
   }
 
+  function clearMatrixSelection() {
+    setSelection(null);
+    setActiveMatrixCell(null);
+    setSelectedMatrixCells([]);
+    setSuggestion("");
+  }
+
+  function clearMatrixSelectionFromNonCell(event: React.MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target.closest(".translation-cell, .tag-cell, .detail-panel, .modal")) return;
+    clearMatrixSelection();
+  }
+
+  function recordEditHistory(entries: TranslationEntry[] = project.entries) {
+    setUndoStack((stack) => [...stack.slice(-(MAX_HISTORY_STEPS - 1)), cloneEntries(entries)]);
+    setRedoStack([]);
+  }
+
+  function undoEdit() {
+    setUndoStack((stack) => {
+      if (!stack.length) return stack;
+      const previous = stack[stack.length - 1];
+      setRedoStack((redo) => [...redo.slice(-(MAX_HISTORY_STEPS - 1)), cloneEntries(project.entries)]);
+      setProject((state) => ({ ...state, entries: cloneEntries(previous) }));
+      setCellDrafts({});
+      setSourceSaveStatus({ kind: "idle" });
+      return stack.slice(0, -1);
+    });
+  }
+
+  function redoEdit() {
+    setRedoStack((stack) => {
+      if (!stack.length) return stack;
+      const next = stack[stack.length - 1];
+      setUndoStack((undo) => [...undo.slice(-(MAX_HISTORY_STEPS - 1)), cloneEntries(project.entries)]);
+      setProject((state) => ({ ...state, entries: cloneEntries(next) }));
+      setCellDrafts({});
+      setSourceSaveStatus({ kind: "idle" });
+      return stack.slice(0, -1);
+    });
+  }
+
+  function isTranslationDraftTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const draftKey = target.dataset.translationDraftKey;
+    return Boolean(draftKey && draftKey in cellDrafts);
+  }
+
+  function handleUndoRedoShortcut(event: React.KeyboardEvent) {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
+    if (isTranslationDraftTarget(event.target)) return;
+    event.preventDefault();
+    if (event.shiftKey) redoEdit();
+    else undoEdit();
+  }
+
   function updateCell(entryKey: string, language: string, value: string) {
+    applyMatrixValue([{ key: entryKey, column: language }], value);
+  }
+
+  function isMatrixCellEditable(entryKey: string, column: string, state: LingridProject = project): boolean {
+    if (column === TAGS_COLUMN) return true;
+    const entry = state.entries.find((item) => item.key === entryKey);
+    return Boolean(entry && cellParticipates(entry, column, state.view.forceMissingCells));
+  }
+
+  function selectMatrixCell(cell: MatrixCellSelection, extend: boolean) {
+    if (!isMatrixCellEditable(cell.key, cell.column)) return;
+    setActiveMatrixCell(cell);
+    if (cell.column !== TAGS_COLUMN) setSelection({ key: cell.key, language: cell.column });
+
+    if (!extend || !activeMatrixCell) {
+      setSelectedMatrixCells([cell]);
+      return;
+    }
+
+    const rowKeys = visible.map((entry) => entry.key);
+    const startRow = rowKeys.indexOf(activeMatrixCell.key);
+    const endRow = rowKeys.indexOf(cell.key);
+    const startColumn = matrixColumns.indexOf(activeMatrixCell.column);
+    const endColumn = matrixColumns.indexOf(cell.column);
+    if (startRow < 0 || endRow < 0 || startColumn < 0 || endColumn < 0) {
+      setSelectedMatrixCells([cell]);
+      return;
+    }
+    const [fromRow, toRow] = startRow < endRow ? [startRow, endRow] : [endRow, startRow];
+    const [fromColumn, toColumn] = startColumn < endColumn ? [startColumn, endColumn] : [endColumn, startColumn];
+    const cells: MatrixCellSelection[] = [];
+    for (let row = fromRow; row <= toRow; row += 1) {
+      for (let column = fromColumn; column <= toColumn; column += 1) {
+        const next = { key: rowKeys[row], column: matrixColumns[column] };
+        if (isMatrixCellEditable(next.key, next.column)) cells.push(next);
+      }
+    }
+    setSelectedMatrixCells(cells.length ? cells : [cell]);
+  }
+
+  function matrixCellValue(cell: MatrixCellSelection): string {
+    const entry = project.entries.find((item) => item.key === cell.key);
+    if (!entry) return "";
+    if (cell.column === TAGS_COLUMN) return entry.tags.join(" ");
+    return cellDrafts[cellDraftKey(cell.key, cell.column)] ?? entry.translations[cell.column]?.value ?? "";
+  }
+
+  function selectedCellsForCommit(entryKey: string, column: string): MatrixCellSelection[] {
+    const currentKey = matrixCellKey(entryKey, column);
+    return selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(currentKey)
+      ? selectedMatrixCells
+      : [{ key: entryKey, column }];
+  }
+
+  function applyMatrixValue(cells: MatrixCellSelection[], value: string) {
     setSourceSaveStatus({ kind: "idle" });
+    const uniqueCells = [...new Map(cells.map((cell) => [matrixCellKey(cell.key, cell.column), cell])).values()];
+    recordEditHistory();
     setCellDrafts((drafts) => {
       const next = { ...drafts };
-      delete next[cellDraftKey(entryKey, language)];
+      uniqueCells.forEach((cell) => {
+        if (cell.column !== TAGS_COLUMN) delete next[cellDraftKey(cell.key, cell.column)];
+      });
       return next;
     });
     setProject((state) => ({
       ...state,
-      entries: state.entries.map((entry) =>
-        entry.key === entryKey
-          ? (!entry.translations[language] && !state.view.forceMissingCells
-            ? entry
-            : { ...entry, translations: { ...entry.translations, [language]: { ...entry.translations[language], value, changed: true } } })
-          : entry,
-      ),
+      entries: state.entries.map((entry) => {
+        const cellsForEntry = uniqueCells.filter((cell) => cell.key === entry.key);
+        if (!cellsForEntry.length) return entry;
+        let nextEntry = entry;
+        for (const cell of cellsForEntry) {
+          if (cell.column === TAGS_COLUMN) {
+            const tags = value.split(/\s+/).map(normalizeTag).filter(Boolean);
+            nextEntry = { ...nextEntry, tags };
+            continue;
+          }
+          if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
+          const previous = nextEntry.translations[cell.column];
+          nextEntry = {
+            ...nextEntry,
+            translations: {
+              ...nextEntry.translations,
+              [cell.column]: {
+                ...previous,
+                value,
+                changed: previous?.changed || value !== (previous?.value ?? ""),
+              },
+            },
+          };
+        }
+        return nextEntry;
+      }),
     }));
+  }
+
+  function applyMatrixValues(values: Array<{ cell: MatrixCellSelection; value: string }>) {
+    setSourceSaveStatus({ kind: "idle" });
+    const uniqueValues = [...new Map(values.map((item) => [matrixCellKey(item.cell.key, item.cell.column), item])).values()];
+    recordEditHistory();
+    setCellDrafts((drafts) => {
+      const next = { ...drafts };
+      uniqueValues.forEach(({ cell }) => {
+        if (cell.column !== TAGS_COLUMN) delete next[cellDraftKey(cell.key, cell.column)];
+      });
+      return next;
+    });
+    setProject((state) => ({
+      ...state,
+      entries: state.entries.map((entry) => {
+        const cellsForEntry = uniqueValues.filter(({ cell }) => cell.key === entry.key);
+        if (!cellsForEntry.length) return entry;
+        let nextEntry = entry;
+        for (const { cell, value } of cellsForEntry) {
+          if (cell.column === TAGS_COLUMN) {
+            nextEntry = { ...nextEntry, tags: value.split(/\s+/).map(normalizeTag).filter(Boolean) };
+            continue;
+          }
+          if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
+          const previous = nextEntry.translations[cell.column];
+          nextEntry = {
+            ...nextEntry,
+            translations: {
+              ...nextEntry.translations,
+              [cell.column]: {
+                ...previous,
+                value,
+                changed: previous?.changed || value !== (previous?.value ?? ""),
+              },
+            },
+          };
+        }
+        return nextEntry;
+      }),
+    }));
+  }
+
+  function parseClipboardGrid(text: string): string[][] {
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").replace(/\n$/, "").split("\n").map((row) => row.split("\t"));
+  }
+
+  function targetCellsFromGrid(start: MatrixCellSelection, rows: string[][]): Array<{ cell: MatrixCellSelection; value: string }> {
+    const visibleKeys = visible.map((entry) => entry.key);
+    const startRow = visibleKeys.indexOf(start.key);
+    const startColumn = matrixColumns.indexOf(start.column);
+    if (startRow < 0 || startColumn < 0) return [];
+    const updates: Array<{ cell: MatrixCellSelection; value: string }> = [];
+    rows.forEach((row, rowOffset) => {
+      row.forEach((value, columnOffset) => {
+        const key = visibleKeys[startRow + rowOffset];
+        const column = matrixColumns[startColumn + columnOffset];
+        if (!key || !column || !isMatrixCellEditable(key, column)) return;
+        updates.push({ cell: { key, column }, value });
+      });
+    });
+    return updates;
+  }
+
+  function handleMatrixCopy(event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>, cell: MatrixCellSelection) {
+    if (!(selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(cell.key, cell.column)))) return;
+    const visibleKeys = visible.map((entry) => entry.key);
+    const rows = selectedMatrixCells.map((item) => visibleKeys.indexOf(item.key)).filter((index) => index >= 0);
+    const columns = selectedMatrixCells.map((item) => matrixColumns.indexOf(item.column)).filter((index) => index >= 0);
+    const selected = selectedMatrixCellIds;
+    const output: string[] = [];
+    for (let row = Math.min(...rows); row <= Math.max(...rows); row += 1) {
+      const values: string[] = [];
+      for (let column = Math.min(...columns); column <= Math.max(...columns); column += 1) {
+        const next = { key: visibleKeys[row], column: matrixColumns[column] };
+        values.push(selected.has(matrixCellKey(next.key, next.column)) ? matrixCellValue(next) : "");
+      }
+      output.push(values.join("\t"));
+    }
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", output.join("\n"));
+  }
+
+  function handleMatrixPaste(event: React.ClipboardEvent<HTMLInputElement>, cell: MatrixCellSelection) {
+    const text = event.clipboardData.getData("text/plain");
+    if (!text) return;
+    const rows = parseClipboardGrid(text);
+    const hasTableShape = rows.length > 1 || rows.some((row) => row.length > 1);
+    const selected = selectedCellsForCommit(cell.key, cell.column);
+    if (selected.length <= 1 && !hasTableShape) return;
+    event.preventDefault();
+    if (!hasTableShape && selected.length > 1) {
+      applyMatrixValue(selected, rows[0]?.[0] ?? "");
+      return;
+    }
+    const updates = targetCellsFromGrid(cell, rows);
+    if (updates.length) applyMatrixValues(updates);
   }
 
   function importDocuments(files: Array<{ name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle }>) {
     if (!files.length) return;
     setSourceSaveStatus({ kind: "idle" });
+    setUndoStack([]);
+    setRedoStack([]);
     setProject((state) => {
       let next = { ...state, documents: [...state.documents], entries: [...state.entries] };
       if (next.documents.length === 0 && next.entries[0]?.key.startsWith("demo")) next = createProject();
@@ -473,12 +739,15 @@ export function App() {
     setCellDrafts((drafts) => ({ ...drafts, [cellDraftKey(entryKey, language)]: value }));
   }
 
-  function commitCell(entryKey: string, language: string) {
+  function commitCell(entryKey: string, language: string, mode: "single" | "batch" = "single") {
     const key = cellDraftKey(entryKey, language);
     if (!(key in cellDrafts)) return;
     const value = cellDrafts[key];
     const committed = project.entries.find((entry) => entry.key === entryKey)?.translations[language]?.value ?? "";
-    if (value !== committed) updateCell(entryKey, language, value);
+    if (value !== committed) {
+      const cells = mode === "batch" ? selectedCellsForCommit(entryKey, language) : [{ key: entryKey, column: language }];
+      applyMatrixValue(cells, value);
+    }
     setCellDrafts((drafts) => {
       const next = { ...drafts };
       delete next[key];
@@ -488,9 +757,10 @@ export function App() {
 
   function moveFromCell(entryKey: string, language: string, direction: "next" | "previous" | "down") {
     const next = adjacentCell(visible.map((entry) => entry.key), project.columnOrder, { key: entryKey, language }, direction);
-    commitCell(entryKey, language);
+    commitCell(entryKey, language, "batch");
     if (!next) return;
     setSelection(next);
+    setActiveMatrixCell({ key: next.key, column: next.language });
     requestAnimationFrame(() => cellInputs.current.get(cellDraftKey(next.key, next.language))?.focus());
   }
 
@@ -611,6 +881,8 @@ export function App() {
     next.projectPath = projectPath;
     next.projectFileHandle = projectFileHandle;
     setCellDrafts({});
+    setUndoStack([]);
+    setRedoStack([]);
     setSourceSaveStatus({ kind: "idle" });
     setProject(next);
     setSavedProjectSnapshot(serializeProject(next));
@@ -795,14 +1067,21 @@ export function App() {
 
   function updateTags(entryKey: string, raw: string) {
     const tags = raw.split(/\s+/).map(normalizeTag).filter(Boolean);
+    recordEditHistory();
     setProject((state) => ({
       ...state,
       entries: state.entries.map((entry) => (entry.key === entryKey ? { ...entry, tags } : entry)),
     }));
   }
 
+  function commitTags(entryKey: string, raw: string, mode: "single" | "batch" = "single") {
+    const cells = mode === "batch" ? selectedCellsForCommit(entryKey, TAGS_COLUMN) : [{ key: entryKey, column: TAGS_COLUMN }];
+    applyMatrixValue(cells, raw);
+  }
+
   function updateWordTags(entryKey: string, language: string, raw: string) {
     const tags = raw.split(/\s+/).map(normalizeTag).filter(Boolean);
+    recordEditHistory();
     setProject((state) => ({
       ...state,
       entries: state.entries.map((entry) => entry.key === entryKey
@@ -849,29 +1128,128 @@ export function App() {
     setNotice("CSV mapping updated");
   }
 
-  async function generateSuggestion() {
-    if (!current || !selection) return;
-    if (ai.provider === "openai-compatible" && (!ai.endpoint || !ai.model)) {
+  function selectOpenAiPreset(id: string) {
+    const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, id);
+    const previous = providerPreset(OPENAI_COMPATIBLE_PRESETS, ai.openAiPreset);
+    setAi({
+      ...ai,
+      provider: "openai-compatible",
+      openAiPreset: preset.id,
+      endpoint: preset.endpoint,
+      model: !ai.model || ai.model === previous.modelPlaceholder ? preset.modelPlaceholder : ai.model,
+    });
+  }
+
+  function selectAnthropicPreset(id: string) {
+    const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, id);
+    setAi({
+      ...ai,
+      provider: "anthropic-compatible",
+      anthropicPreset: preset.id,
+      endpoint: preset.endpoint,
+      model: !ai.model ? preset.modelPlaceholder : ai.model,
+    });
+  }
+
+  function aiSettingsReady(): boolean {
+    if (ai.provider === "anthropic-compatible") return false;
+    if (ai.provider === "openai-compatible" && (!ai.endpoint || !ai.model)) return false;
+    if (ai.provider === "deepl" && !ai.apiKey) return false;
+    return true;
+  }
+
+  function aiPrompt(entry: TranslationEntry, language: string): string {
+    return renderAiPromptTemplate({
+      template: ai.prompt,
+      language,
+      source: entry.source,
+      columnLabels: project.columnLabels,
+    });
+  }
+
+  async function requestAiTranslation(entry: TranslationEntry, language: string): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
+    if (ai.provider === "openai-compatible") {
+      const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language) });
+      return { text: result.text, strippedThink: result.strippedThink };
+    }
+    if (ai.provider === "deepl") {
+      const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language });
+      return { text: result.text, detectedSource: result.detectedSource };
+    }
+    throw new Error("Anthropic-compatible providers are not implemented yet.");
+  }
+
+  function emptyAiTargets(scope: "all-empty" | "selection"): Array<{ entry: TranslationEntry; language: string }> {
+    const cells = scope === "selection" ? selectedMatrixCells : project.entries.flatMap((entry) => project.columnOrder.map((language) => ({ key: entry.key, column: language })));
+    const unique = [...new Map(cells.map((cell) => [matrixCellKey(cell.key, cell.column), cell])).values()];
+    return unique.flatMap((cell) => {
+      if (cell.column === TAGS_COLUMN || !project.columnOrder.includes(cell.column)) return [];
+      const entry = project.entries.find((item) => item.key === cell.key);
+      if (!entry || !cellParticipates(entry, cell.column, project.view.forceMissingCells)) return [];
+      const currentValue = cellDrafts[cellDraftKey(entry.key, cell.column)] ?? entry.translations[cell.column]?.value ?? "";
+      return currentValue.trim() ? [] : [{ entry, language: cell.column }];
+    });
+  }
+
+  async function generateBatchAi(scope: "all-empty" | "selection") {
+    if (!aiSettingsReady()) {
       setModal("ai");
       return;
     }
-    if (ai.provider === "deepl" && !ai.apiKey) {
+    const targets = emptyAiTargets(scope);
+    if (!targets.length) {
+      setNotice(scope === "selection" ? "No empty editable cells in the selected range." : "No empty editable translation cells.");
+      return;
+    }
+    setAiBusy(true);
+    setSuggestion("");
+    let failed = 0;
+    let skipped = 0;
+    const updates: Array<{ cell: MatrixCellSelection; value: string }> = [];
+    try {
+      for (let index = 0; index < targets.length; index += 1) {
+        const target = targets[index];
+        setNotice(`AI translating ${index + 1} / ${targets.length}`);
+        try {
+          const result = await requestAiTranslation(target.entry, target.language);
+          const text = result.text.trim();
+          if (!text) {
+            skipped += 1;
+            continue;
+          }
+          updates.push({ cell: { key: target.entry.key, column: target.language }, value: text });
+        } catch {
+          failed += 1;
+        }
+      }
+      if (updates.length) applyMatrixValues(updates);
+      appendDiagnostic("ai.batch.summary", { provider: ai.provider, total: targets.length, written: updates.length, skipped, failed });
+      setNotice(`AI translated ${updates.length}; skipped ${skipped}; failed ${failed}.`);
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function generateSuggestion() {
+    if (selectedMatrixCells.length > 1) {
+      await generateBatchAi("selection");
+      return;
+    }
+    if (!current || !selection) {
+      await generateBatchAi("all-empty");
+      return;
+    }
+    if (!aiSettingsReady()) {
       setModal("ai");
       return;
     }
     setAiBusy(true);
     try {
-      if (ai.provider === "openai-compatible") {
-        const prompt = ai.prompt.replaceAll("{{language}}", selection.language).replaceAll("{{source}}", current.source);
-        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt });
-        setSuggestion(result.text);
-        if (result.strippedThink) appendDiagnostic("ai.stripped_think", { language: selection.language, source: current.source });
-      } else {
-        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: current.source, targetLang: selection.language });
-        if (!result.text) throw new Error("empty");
-        setSuggestion(result.text);
-        if (result.detectedSource) appendDiagnostic("deepl.detected_source", { detected: result.detectedSource, requested: toDeepLTargetLanguage(selection.language) });
-      }
+      const result = await requestAiTranslation(current, selection.language);
+      if (!result.text) throw new Error("empty");
+      setSuggestion(result.text);
+      if (result.strippedThink) appendDiagnostic("ai.stripped_think", { language: selection.language });
+      if (result.detectedSource) appendDiagnostic("deepl.detected_source", { detected: result.detectedSource, requested: toDeepLTargetLanguage(selection.language) });
     } catch {
       setNotice(ai.provider === "deepl" ? "DeepL request failed. Check region and API key." : "AI request failed. Check endpoint and model settings.");
     } finally {
@@ -881,6 +1259,7 @@ export function App() {
 
   function applyBatch() {
     if (!batch.find) return;
+    recordEditHistory();
     setProject((state) => ({
       ...state,
       entries: state.entries.map((entry) => {
@@ -925,8 +1304,8 @@ export function App() {
   const stats = projectStats(project);
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
+    <main className="app-shell" onKeyDown={handleUndoRedoShortcut}>
+      <header className="topbar" onMouseDown={clearMatrixSelectionFromNonCell}>
         <div className="brand"><div className="brand-mark"><Languages size={16} /></div><strong>Lingrid</strong><span>灵译</span></div>
         <nav className="toolbar">
           <Button onClick={openFiles}><FolderOpen size={15} />{t.open}</Button>
@@ -970,7 +1349,7 @@ export function App() {
         </div>
       </header>
 
-      <section className="filterbar">
+      <section className="filterbar" onMouseDown={clearMatrixSelectionFromNonCell}>
         <label className="search"><Search size={15} /><input value={project.view.search} onChange={(event) => patchProject({ view: { ...project.view, search: event.target.value } })} placeholder={t.search} /></label>
         <FilterMenu label={completionLabel} active={project.view.completion !== "all"}>
           {(["all", "incomplete", "complete"] as const).map((completion) => <label key={completion}><input type="radio" checked={project.view.completion === completion} onChange={() => patchProject({ view: { ...project.view, completion } })} />{completion === "all" ? t.allEntries : completion === "complete" ? t.complete : t.incomplete}</label>)}
@@ -994,7 +1373,7 @@ export function App() {
       </section>
 
       <div className="workspace">
-        <section className="matrix-wrap">
+        <section className="matrix-wrap" onMouseDown={clearMatrixSelectionFromNonCell}>
           <table className="matrix" style={{ width: columnWidth(SOURCE_COLUMN) + project.columnOrder.reduce((sum, language) => sum + columnWidth(language), 0) + columnWidth(TAGS_COLUMN) }}>
             <colgroup><col style={{ width: columnWidth(SOURCE_COLUMN) }} />{project.columnOrder.map((language) => <col key={language} style={{ width: columnWidth(language) }} />)}<col style={{ width: columnWidth(TAGS_COLUMN) }} /></colgroup>
             <thead><tr><th className="source-col">{t.source}{resizeHandle(SOURCE_COLUMN)}</th>{project.columnOrder.map((language) => <th className={dragOverLanguage === language ? "drag-over" : ""} key={language} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverLanguage(language); }} onDragLeave={() => setDragOverLanguage((current) => current === language ? null : current)} onDrop={(event) => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); dropLanguage(language, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after"); }}><button draggable className={`sort-header ${project.view.sort?.language === language ? "active" : ""} ${draggedLanguage === language ? "dragging" : ""}`} title="Click to sort. Drag to reorder columns." onClick={() => { if (!draggedHeader.current) cycleSort(language); }} onDragStart={(event) => { draggedHeader.current = true; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", language); setDraggedLanguage(language); }} onDragEnd={() => { setDraggedLanguage(null); setDragOverLanguage(null); requestAnimationFrame(() => { draggedHeader.current = false; }); }}>{project.columnLabels[language] ?? language}{sortIcon(language, project.view.sort?.mode)}</button>{resizeHandle(language)}</th>)}<th>{t.tags}{resizeHandle(TAGS_COLUMN)}</th></tr></thead>
@@ -1005,13 +1384,33 @@ export function App() {
                   const cell = entry.translations[language];
                   const editable = Boolean(cell) || project.view.forceMissingCells;
                   const selected = entry.key === selection?.key && language === selection.language;
+                  const matrixSelected = selectedMatrixCellIds.has(matrixCellKey(entry.key, language));
                   const draftKey = cellDraftKey(entry.key, language);
-                  return <td key={language} className={`translation-cell ${!editable ? "unavailable" : ""} ${selected ? "selected-cell" : ""} ${cell?.changed ? "changed" : ""}`} title={!editable ? t.unavailableCell : undefined} onClick={() => { if (editable) setSelection({ key: entry.key, language }); }}>
+                  return <td
+                    key={language}
+                    className={`translation-cell ${!editable ? "unavailable" : ""} ${selected ? "selected-cell" : ""} ${matrixSelected ? "multi-selected-cell" : ""} ${cell?.changed ? "changed" : ""}`}
+                    title={!editable ? t.unavailableCell : undefined}
+                    onMouseDown={(event) => {
+                      if (!editable) return;
+                      if (event.shiftKey) event.preventDefault();
+                      selectMatrixCell({ key: entry.key, column: language }, event.shiftKey);
+                      if (event.shiftKey) requestAnimationFrame(() => cellInputs.current.get(draftKey)?.focus());
+                    }}
+                  >
                     {cell?.tags?.length ? <span className="word-tag-markers" title={cell.tags.join(" ")}>{cell.tags.map((tag) => <i key={tag} style={{ backgroundColor: tagColor(tag) }} />)}</span> : null}
-                    <input disabled={!editable} ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell?.value ?? ""} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={editable ? t.missingTranslation : ""} />
+                    <input disabled={!editable} data-translation-draft-key={draftKey} ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell?.value ?? ""} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: language })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: language })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(entry.key, language))) event.preventDefault(); if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={editable ? t.missingTranslation : ""} />
                   </td>;
                 })}
-                <td><input className="tag-input" value={entry.tags.join(" ")} onChange={(event) => updateTags(entry.key, event.target.value)} placeholder="#tag" /></td>
+                <td
+                  className={`tag-cell ${selectedMatrixCellIds.has(matrixCellKey(entry.key, TAGS_COLUMN)) ? "multi-selected-cell" : ""}`}
+                  onMouseDown={(event) => {
+                    if (event.shiftKey) event.preventDefault();
+                    selectMatrixCell({ key: entry.key, column: TAGS_COLUMN }, event.shiftKey);
+                    if (event.shiftKey) requestAnimationFrame(() => event.currentTarget.querySelector("input")?.focus());
+                  }}
+                >
+                  <input className="tag-input" value={entry.tags.join(" ")} onChange={(event) => updateTags(entry.key, event.target.value)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: TAGS_COLUMN })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: TAGS_COLUMN })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); commitTags(entry.key, event.currentTarget.value, selectedMatrixCells.length > 1 ? "batch" : "single"); } }} placeholder="#tag" />
+                </td>
               </tr>
             ))}</tbody>
           </table>
@@ -1023,7 +1422,7 @@ export function App() {
             <label className="field-label">{t.source}</label><div className="source-preview">{current.source}</div>
             {current.context ? <><label className="field-label">{t.keyContext}</label><code>{current.context}</code></> : null}
             <label className="field-label">{t.translation}</label>
-            <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={cellParticipates(current, selection.language, project.view.forceMissingCells) ? t.enterTranslation : t.unavailableCell} />
+            <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} data-translation-draft-key={cellDraftKey(current.key, selection.language)} className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={cellParticipates(current, selection.language, project.view.forceMissingCells) ? t.enterTranslation : t.unavailableCell} />
             <label className="field-label">{t.sourceTags}</label>
             <input className="text-input" value={current.tags.join(" ")} onChange={(event) => updateTags(current.key, event.target.value)} placeholder="#ui #review" />
             <label className="field-label">{t.wordTags}</label>
@@ -1054,27 +1453,55 @@ export function App() {
           <fieldset className="provider-switch ai-segmented">
             <legend>{t.provider}</legend>
             <label className={ai.provider === "openai-compatible" ? "active" : ""}>
-              <input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => setAi({ ...ai, provider: "openai-compatible" })} />
-              <span><b>{t.providerOpenAi}</b><small>{t.openAiHelp}</small></span>
+              <input type="radio" name="ai-provider" value="openai-compatible" checked={ai.provider === "openai-compatible"} onChange={() => selectOpenAiPreset(ai.openAiPreset)} />
+              <i className="ai-option-dot" aria-hidden="true" />
+              <span className="ai-option-text"><b>{t.providerOpenAi}</b><small>{t.openAiHelp}</small></span>
+            </label>
+            <label className={ai.provider === "anthropic-compatible" ? "active" : ""}>
+              <input type="radio" name="ai-provider" value="anthropic-compatible" checked={ai.provider === "anthropic-compatible"} onChange={() => selectAnthropicPreset(ai.anthropicPreset)} />
+              <i className="ai-option-dot" aria-hidden="true" />
+              <span className="ai-option-text"><b>{t.providerOtherCompatible}</b><small>{t.otherCompatibleHelp}</small></span>
             </label>
             <label className={ai.provider === "deepl" ? "active" : ""}>
-              <input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion] })} />
-              <span><b>{t.providerDeepl}</b><small>{t.deeplHelp}</small></span>
+              <input type="radio" name="ai-provider" value="deepl" checked={ai.provider === "deepl"} onChange={() => setAi({ ...ai, provider: "deepl", endpoint: DEEPL_ENDPOINTS[ai.deeplRegion] })} />
+              <i className="ai-option-dot" aria-hidden="true" />
+              <span className="ai-option-text"><b>{t.providerDeepl}</b><small>{t.deeplHelp}</small></span>
             </label>
           </fieldset>
         </section>
         <section className="ai-settings-card">
-          <div className="ai-card-heading"><strong>{ai.provider === "deepl" ? t.providerDeepl : t.credentials}</strong><span>{ai.provider === "deepl" ? t.deeplRegionHelp : t.promptHelp}</span></div>
+          <div className="ai-card-heading"><strong>{ai.provider === "deepl" ? t.providerDeepl : ai.provider === "anthropic-compatible" ? t.providerOtherCompatible : t.credentials}</strong><span>{ai.provider === "deepl" ? t.deeplRegionHelp : t.promptHelp}</span></div>
           {ai.provider === "openai-compatible" ? <div className="ai-form-grid">
+            <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
+              <legend>{t.providerPreset}</legend>
+              {OPENAI_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${ai.openAiPreset === preset.id ? "active" : ""}${preset.warning ? " warning" : ""}`}>
+                <input type="radio" name="openai-preset" value={preset.id} checked={ai.openAiPreset === preset.id} onChange={() => selectOpenAiPreset(preset.id)} />
+                <i className="ai-option-dot" aria-hidden="true" />
+                <span className="ai-option-text"><b>{preset.label}</b><small>{preset.warning ?? preset.description}</small></span>
+              </label>)}
+            </fieldset>
             <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
             <label>{t.model}<input value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder="model-name" /></label>
-            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="Stored in this browser via localStorage" /></label>
+            <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder={providerPreset(OPENAI_COMPATIBLE_PRESETS, ai.openAiPreset).apiKeyPlaceholder} /></label>
             <label className="ai-field-full">{t.promptTemplate}<textarea value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
+          </div> : ai.provider === "anthropic-compatible" ? <div className="ai-form-grid">
+            <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
+              <legend>{t.providerPreset}</legend>
+              {ANTHROPIC_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${ai.anthropicPreset === preset.id ? "active" : ""} disabled-option`}>
+                <input type="radio" name="anthropic-preset" value={preset.id} checked={ai.anthropicPreset === preset.id} onChange={() => selectAnthropicPreset(preset.id)} />
+                <i className="ai-option-dot" aria-hidden="true" />
+                <span className="ai-option-text"><b>{preset.label} · {t.disabledProvider}</b><small>{preset.description}</small></span>
+              </label>)}
+            </fieldset>
+            <label>{t.apiEndpoint}<input disabled value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).endpoint} /></label>
+            <label>{t.model}<input disabled value={ai.model} onChange={(event) => setAi({ ...ai, model: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).modelPlaceholder} /></label>
+            <label>{t.apiKey}<input disabled type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, ai.anthropicPreset).apiKeyPlaceholder} /></label>
+            <label className="ai-field-full">{t.promptTemplate}<textarea disabled value={ai.prompt} onChange={(event) => setAi({ ...ai, prompt: event.target.value })} /></label>
           </div> : <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-field-full">
               <legend>{t.deeplRegion}</legend>
-              <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} /><span><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.free}</small></span></label>
-              <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} /><span><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.pro}</small></span></label>
+              <label className={ai.deeplRegion === "free" ? "active" : ""}><input type="radio" name="deepl-region" value="free" checked={ai.deeplRegion === "free"} onChange={() => setAi({ ...ai, deeplRegion: "free", endpoint: DEEPL_ENDPOINTS.free })} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.free}</small></span></label>
+              <label className={ai.deeplRegion === "pro" ? "active" : ""}><input type="radio" name="deepl-region" value="pro" checked={ai.deeplRegion === "pro"} onChange={() => setAi({ ...ai, deeplRegion: "pro", endpoint: DEEPL_ENDPOINTS.pro })} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.pro}</small></span></label>
             </fieldset>
             <label>{t.apiEndpoint}<input value={ai.endpoint} onChange={(event) => setAi({ ...ai, endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[ai.deeplRegion]} /></label>
             <label>{t.apiKey}<input type="password" value={ai.apiKey} onChange={(event) => setAi({ ...ai, apiKey: event.target.value })} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>
