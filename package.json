@@ -1,6 +1,6 @@
 {
   "name": "lingrid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight local-first PO/CSV multilingual matrix editor.",
   "author": "ddonlien",
   "private": true,

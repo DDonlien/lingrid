@@ -1,10 +1,10 @@
-# Lingrid 灵译
+# Lingrid
 
-![Lingrid 灵译 logo](assets/icon-128.png)
+![Lingrid logo](assets/icon-128.png)
 
-Lingrid 灵译是一个轻量、现代、本地优先的 PO / CSV 多语言并排编辑器。
+Lingrid is a lightweight, modern, local-first PO / CSV multilingual side-by-side matrix editor.
 
-它的核心目标不是复制传统单语言 PO 编辑器，而是把多个语言文件导入同一个窗口，用矩阵方式同时查看、搜索、编辑和保存一个 source 对应的多语言译文。
+Its core objective is not to replicate traditional single-language PO editors, but to import multiple language files into a single window, allowing users to view, search, edit, and save multilingual translations corresponding to a single source text in a matrix layout.
 
 ```text
 source                zh-CN        en              ja             tag
@@ -12,81 +12,82 @@ Start Game            开始游戏      Start Game      ゲーム開始      #ui
 Options               选项          Options         オプション      #review
 ```
 
-## 项目概述
+## Project Overview
 
-- 项目名称：Lingrid 灵译
-- 一句话简介：轻量现代的 PO / CSV 多语言矩阵编辑器。
-- 解决的问题：传统 PO 编辑器通常以单文件、单语言为主；Lingrid 优先解决游戏和软件本地化中“一个源文本对应多语言译文，需要并排查看和编辑”的问题。
-- 目标用户：独立游戏开发者、小型软件团队、本地化负责人、外包翻译协作者、需要管理多语言 PO/CSV 文件的人。
-- 当前状态：Phase 1（v0.1）可运行原型。已完成 P0 编辑器、P1 轻量 AI 建议与批量替换，并补齐 P2 Electron 桌面封装命令。
+- **Project Name**: Lingrid
+- **One-sentence description**: A lightweight and modern PO / CSV multilingual matrix editor.
+- **Problem Solved**: Traditional PO editors are usually single-file and single-language oriented. Lingrid prioritizes game and software localization workflows where one source text corresponds to multiple language translations, requiring side-by-side viewing and editing.
+- **Target Audience**: Indie game developers, small software teams, localization managers, freelance translators, and anyone managing multilingual PO/CSV files.
+- **Current Status**: Phase 1 (v0.1) runnable prototype. Core editor features, lightweight AI suggestions, batch find/replace, and Electron packaging scripts for desktop build are ready.
 
-## Phase 1（v0.1）目标能力
+## Phase 1 (v0.1) Capabilities
 
-- 支持 `.po` 和 `.csv` 作为可编辑原文件输入。
-- 支持 `.pot` 作为只读 source/template 输入。
-- 多次追加导入文件，不必一次性导入完整项目。
-- 自动合并为多语言矩阵视图。
-- 支持调整语言列顺序和宽度，并为导入后的语言列设置显示名称。
-- 直接在矩阵中编辑译文。
-- 选中单元格后，在类似 Poedit 的详情编辑区进行更大的 1 对 1 编辑。
-- 主保存按钮直接把修改写回原 `.po` / `.csv` 文件。
-- 单独保存项目 JSON，用于记录打开的文件、语言列顺序、tag 和 CSV 映射。搜索、筛选、排序和强制补齐开关仅属于当前会话，不写入项目文件。
-- 支持保存项目、项目另存、当前 PO 另存。
-- 支持 source、任意语言译文和 tag 搜索。
-- 支持完成情况、changed 和 tag 筛选。
-- 支持两层 Obsidian 风格 tag：Source Tag 由同一 source 的所有语言共享；Word Tag 绑定具体语言单元格，并在矩阵格右上角显示稳定颜色的竖条标记。
-- Source Tag 与 Word Tag 筛选均提供 `全部` 和 `空`：勾选 `全部` 会同步选中所有具体 tag 与无标签项，`空` 用于定位没有标签的条目或单元格。
-- 支持简单统计：条目数、各语言完成率、未翻译数量、tag 数量、changed 数量。
-- 支持简单 AI / 翻译 API 建议：配置 endpoint、key、model、prompt 后，对当前单元格请求翻译建议。
-- 支持简单批量查找与替换。
-- 支持类似 Excel 的矩阵多选、批量复制粘贴、批量填写，以及 `Ctrl/Cmd+Z` 撤销和 `Ctrl/Cmd+Shift+Z` 重做；Source Tag 单元格也支持同等操作。
-- 应用界面支持中文、日文和英文切换。
+- Support `.po` and `.csv` as editable source file inputs.
+- Support `.pot` as read-only source/template inputs.
+- Support appending/importing multiple files iteratively rather than all at once.
+- Automatically merge imported files into a unified multilingual matrix view.
+- Support adjusting column order and width, and set display names for language columns.
+- Edit translations directly inside the matrix cells.
+- Select a cell to edit in a larger 1-to-1 Poedit-like detail editor panel.
+- Save changes directly back to the original source `.po` / `.csv` files.
+- Save project state separately in a project JSON file (containing open files, column order, tags, and CSV mappings). Note that search, filters, sorting, and force-fill toggle remain session-only and are not written to the project JSON.
+- Support saving projects, saving projects as new files, and saving current language PO as new files.
+- Search by source, any target language translations, and tags.
+- Filter by completion status, changed/dirty status, and tags.
+- Two-tier Obsidian-style tags: Source Tags (shared across all languages for a source entry) and Word Tags (bound to a specific language cell, rendered as a colored vertical bar in the top-right corner of the matrix cell).
+- Tag filters (both Source and Word tags) provide `All` and `Empty` options: checking `All` selects all tags and empty items, while `Empty` targets untagged entries/cells.
+- Basic statistics: entry count, completion rates per language, untranslated counts, tag counts, and changed counts.
+- Lightweight AI / Translation API suggestions: configure endpoint, key, model, and prompt to fetch translation suggestions for the active cell.
+- Simple batch find and replace.
+- Excel-like matrix multi-selection, bulk copy-paste, bulk fill, and `Ctrl/Cmd+Z` undo / `Ctrl/Cmd+Shift+Z` redo; Source Tag cells support the same operations.
+- UI supports switching interface language between Chinese, Japanese, and English.
 
-## 文件处理边界
+## File Processing Boundaries
 
-- Phase 1（v0.1）的可编辑原文件输入为 `.po` 和 `.csv`，允许直接保存回源文件。
-- `.pot` 只作为 source/template 输入，默认不写入译文，不属于可编辑原文件。
-- PO 在内部不能简化为普通表格。读取和保存时需要保留 `msgctxt`、`msgid`、`msgid_plural`、`msgstr[n]`、comments、references、flags、previous source 和 obsolete entries 等信息。
-- 矩阵只是 PO 文档的 UI 投影。保存时尽量保持原始 entry 顺序和稳定格式，避免制造无意义 diff。
-- CSV 不尝试兼容所有翻译表结构。导入时由用户映射 source 列、语言列和可选 id/key 列。
-- 项目 JSON 只保存项目状态，不作为翻译正文的主数据库。
-- Source Tag 和 Word Tag 均保存到项目 JSON，默认不写入 `.po` 或 `.csv` 正文。
+- Editable source inputs in Phase 1 (v0.1) are `.po` and `.csv`, allowing direct overwrites to the source files.
+- `.pot` files are read-only templates/sources; they cannot be edited and are never overwritten by the saving process.
+- PO files are not simplified internally into plain tables. When reading and writing, metadata such as `msgctxt`, `msgid`, `msgid_plural`, `msgstr[n]`, comments, references, flags, previous source, and obsolete entries are fully preserved.
+- The matrix is just a UI projection of the PO documents. Saving preserves the original entry order and formatting to avoid generating unnecessary diffs.
+- CSV parsing does not attempt to support all arbitrary table layouts. Users must map source column, language columns, and optional id/key columns during import.
+- The project JSON file only stores project metadata, not the actual translations.
+- Source and Word tags are stored in the project JSON and are not written into the source `.po` or `.csv` files.
 
-## 非目标范围
+## Non-Goals (Out of Scope for Phase 1)
 
-Phase 1（v0.1）暂不做：
+The following features are NOT planned for Phase 1 (v0.1):
 
-- Excel 导入导出。
-- 术语库。
-- 翻译记忆。
-- 多人协作。
-- Git 集成。
-- 复杂 QA 系统。
-- 复杂项目管理。
-- Crowdin / Lokalise / Weblate 级平台能力。
+- Excel (`.xlsx`) import/export.
+- Terminology databases (glossaries).
+- Translation memory (TM).
+- Multi-user collaboration/syncing.
+- Direct Git integration.
+- Complex QA verification suites.
+- Complex project management tools.
+- Platform-level features matching Crowdin, Lokalise, or Weblate.
 
-## 技术方向
+## Tech Stack & Architecture
 
-- TypeScript 优先。
-- 使用 Electron 打包桌面应用。
-- UI 使用 React、shadcn/ui、Tailwind CSS。
-- 视觉参考 Linear：现代、克制、高密度、低噪声。
-- 核心逻辑与 UI 解耦：PO/CSV adapter、矩阵合并、保存、搜索筛选、统计、tag、AI 建议应尽量放在可测试的 core 层。
-- Renderer 不直接访问 Node 文件系统；文件对话框、源文件读写和 API key 安全存储通过 Electron main/preload 暴露的受控 API 完成。
+- **Language**: TypeScript first.
+- **App Shell**: Desktop app packaged via Electron.
+- **UI Framework**: React, shadcn/ui, Tailwind CSS.
+- **Design Guidelines**: Inspired by Linear: modern, minimalist, high density, and low noise.
+- **Separation of Concerns**: Core logic (PO/CSV adapters, matrix merging, saving, searching/filtering, statistics, tags, AI suggestions) lives in a testable core layer decoupled from React.
+- **Security**: The Renderer does not directly access the Node file system. Native file dialogs, file reading/writing, and secure API key storage are handled through preload/main process APIs in Electron.
 
-## 建议目录结构
+## Directory Structure
 
 ```text
 .
 ├── AGENTS.md
 ├── README.md
+├── README.zh-CN.md
 ├── REQUIREMENTS.md
 ├── DESIGN.md
 ├── agent-log/
-├── assets/                 # 品牌与图标源资源
-│   ├── icon-source.png     # 原始 1254x1254 源图
+├── assets/                 # Brand and icon source assets
+│   ├── icon-source.png     # Original 1254x1254 source image
 │   └── icon-{16,32,48,64,128,180,192,256,512,1024}.png
-├── public/                 # 浏览器静态资源（Vite 原样 copy 到 dist/）
+├── public/                 # Browser static assets (copied by Vite to dist/)
 │   ├── favicon.ico
 │   ├── favicon-{16,32}.png
 │   ├── apple-touch-icon.png
@@ -106,72 +107,72 @@ Phase 1（v0.1）暂不做：
     └── preload/
 ```
 
-## 快速开始
+## Getting Started
 
-安装依赖并启动浏览器开发预览：
+Install dependencies and start the browser-based development preview:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## 在线预览
+## Online Demo
 
-GitHub Pages 浏览器版本：
+GitHub Pages web version:
 
 ```text
 https://ddonlien.github.io/lingrid/
 ```
 
-推送到 `main` 后，GitHub Actions 会自动执行测试、构建并部署 `dist/`。Electron 封装属于 Phase 2（P2），不影响浏览器版本发布。
+Deployments to GitHub Pages are managed automatically via GitHub Actions upon pushes to `main`. Electron build/packaging is handled in Phase 2 (P2) and does not affect the web version.
 
-浏览器开发预览在支持 File System Access API 的浏览器中可以直接覆盖通过 `Open` 打开的本地源文件。主保存只写入内容实际变化的文件，写入前确认文件句柄具有 `readwrite` 权限，写入后回读校验磁盘内容。不支持该 API 的浏览器会回退为普通文件选择；此时主保存会下载更新后的副本，并明确提示原文件没有被覆盖，未保存状态也会继续保留。
+The web-based preview supports overwriting local files directly if the browser supports the File System Access API. Saving only writes to files with actual changes, validates `readwrite` permissions before writing, and performs a post-write read verification. In browsers without this API, saving falls back to downloading updated file copies, showing a notice that the original files were not overwritten.
 
-Electron 桌面版本重新打开项目时，会按项目 JSON 记录的路径自动读取 PO/POT 或 CSV 源文件。个别源文件缺失或不可读时会跳过并提示，不阻止其余文件打开。
+The Electron version automatically reopens PO/POT/CSV source files based on the paths stored in the project JSON. Missing or unreadable files are skipped with a warning.
 
-浏览器开发预览受网页权限模型限制：重新打开项目时，先选择项目 JSON，再点击 `Authorize Project Folder` 以 `readwrite` 模式授权一次项目目录。应用会在目录中递归查找 JSON 引用的源文件并自动恢复；个别缺失文件会跳过并提示。不支持目录选择 API 的浏览器才回退为手动重新选择源文件。项目 JSON 记录项目状态，但不嵌入翻译正文或浏览器文件权限。
+In the web preview, due to browser sandboxing, reopening a project requires selecting the project JSON first, then clicking `Authorize Project Folder` to authorize the project directory. The app then recursively finds and restores source files matching the JSON paths. Sandboxed browser constraints do not apply to the desktop Electron app.
 
-不同语言 PO 的条目集合可以不完全一致。矩阵会展示各语言条目的并集，但某个目标语言 PO 中实际不存在的单元格默认灰置、禁止编辑，也不参与该语言的完成度统计和筛选。需要主动补齐文件结构时，可开启顶栏 `强制补齐`：编辑缺失单元格后保存，应用会从已有语言克隆该条目的完整 PO block 元数据，并追加到目标语言 PO。
+Different language PO files can have mismatched entries. The matrix displays the union of all entries, but missing cells are disabled by default and excluded from stats. You can toggle `Force Fill` in the toolbar; when editing a missing cell under Force Fill, saving will clone the PO metadata from existing entries and append the cell to the target PO file.
 
-如果浏览器中出现授权后仍无法保存的问题，点击顶部 `诊断日志`，先清空日志，再依次执行打开项目、授权目录、修改单元格和保存，最后点击 `复制日志`。报告会记录浏览器能力、项目加载、目录扫描和匹配、文件权限、序列化大小、逐文件写入、关闭与回读校验结果；不会记录译文正文、API key 或项目 JSON 内容。
+If you encounter saving issues in the browser, check the `Diagnostics` log in the top menu. Clear the log, perform your actions, and copy the log. It records browser capabilities, loading, directory scans, file permissions, serialization sizes, write attempts, and verification results without storing translation texts or API keys.
 
-Electron 桌面开发入口：
+To start the desktop development server in Electron:
 
 ```bash
 npm run build
 npm run dev:electron
 ```
 
-Electron P2 封装命令：
+To package the Electron desktop app:
 
 ```bash
 npm run package:electron
 npm run dist:electron
 ```
 
-`package:electron` 会生成本机 unpacked 应用，适合本地验收桌面文件对话框、受控读写和项目恢复；`dist:electron` 会按当前平台生成安装/分发产物，输出到 `release/`。桌面应用图标已配齐（参见 `assets/icon-source.png` 与 `package.json` 的 `build.icon`），正式 macOS 发布前仍需要补充 Developer ID 证书与 notarization 配置。
+`package:electron` packages the unpacked application for testing. `dist:electron` packages the installers for distribution in `release/`. App icons are pre-configured. macOS production releases require Developer ID certificates and notarization.
 
-运行验证：
+Running tests and validation:
 
 ```bash
 npm test
 npm run build
 ```
 
-当前使用 `npm`，因为本机 Node.js 20 与全局 `pnpm` 11 不兼容。
+Currently, `npm` is preferred since the local Node.js v20 conflicts with global `pnpm` v11.
 
-## 文档入口
+## Documentation
 
-- Agent 协作规范：`AGENTS.md`
-- 需求与验收追踪：`REQUIREMENTS.md`
-- 视觉规范：`DESIGN.md`
-- 执行日志：`agent-log/`
+- **Agent Collaboration Protocol**: `AGENTS.md`
+- **Requirements & Acceptance Checklist**: `REQUIREMENTS.md`
+- **Design System & Visual Spec**: `DESIGN.md`
+- **Agent Logs**: `agent-log/`
 
-## 设计原则
+## Design Principles
 
-- 并排编辑优先。
-- 文件保存可靠性高于功能数量。
-- 主保存按钮保存源文件，不隐藏真实文件流向。
-- 项目 JSON 只保存项目状态，不替代 `.po` / `.csv`。
-- 简单、轻量、本地优先。
-- AI 是辅助建议，不是默认自动翻译流水线。
+- **Side-by-side editing priority**: Multilingual alignment is the primary goal.
+- **Reliable file saving**: Integrity of user files takes precedence over feature count.
+- **Explicit file flows**: The main save button acts directly on source files.
+- **State isolation**: The project JSON stores only project state, never replacing `.po` / `.csv` source data.
+- **Local-first**: Lightweight, local storage, no SaaS databases.
+- **AI as assistance**: AI translations are suggestions, not automatic pipelines.

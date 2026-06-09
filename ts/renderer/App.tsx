@@ -1698,7 +1698,7 @@ export function App() {
           </section>
         </aside>
       </div>
-      <footer className="statusbar"><span><i className={saveStatusClass} />{saveStatusText}</span><span>{notice}</span><span>{project.documents.length} {t.sourceFiles} · Phase 1 / v0.1</span></footer>
+      <footer className="statusbar"><span><i className={saveStatusClass} />{saveStatusText}</span><span>{notice}</span><span>{project.documents.length} {t.sourceFiles} · v0.1.1</span></footer>
 
       <input hidden multiple ref={fileInput} type="file" accept=".po,.pot,.csv" onChange={async (event) => { const files = await Promise.all([...event.target.files ?? []].map(async (file) => ({ name: file.name, path: "", content: await file.text() }))); event.target.value = ""; if (pendingProjectConfig.current) { const config = pendingProjectConfig.current; pendingProjectConfig.current = null; restoreProject(config, files); } else importDocuments(files); }} />
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />
