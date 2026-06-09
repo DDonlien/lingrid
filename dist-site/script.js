@@ -1,37 +1,30 @@
-// Lingrid Website — Language Switcher & Mobile Menu
+// Lingrid Website — Language Switcher, Mobile Menu & Demo Animations
 (function() {
   'use strict';
 
   const translations = {
     en: {
       'nav.features': 'Features',
-      'nav.demo': 'Demo',
-      'nav.download': 'Download',
       'nav.tryOnline': 'Try Online',
       'hero.badge': 'Open Source & Local-First',
       'hero.title': 'Lingrid <span class="hero-title-accent">灵译</span>',
       'hero.subtitle': 'A lightweight, modern, local-first PO / CSV multilingual side-by-side matrix editor. Built for indie game developers, small software teams, and freelance translators.',
       'hero.cta.try': 'Try in Browser',
       'hero.cta.download': 'Download Desktop App',
-      'hero.stat.formats': 'Dual Format',
-      'hero.stat.languages': 'Languages',
-      'hero.stat.local': 'Local-First',
-      'matrix.title': 'Side-by-Side Matrix Editing',
-      'matrix.desc': 'See all language translations for a single source text in one unified view. No more switching between files.',
-      'features.title': 'Built for Localization Workflows',
-      'features.desc': 'Every feature designed around one core principle: multilingual alignment should be effortless.',
-      'feature.matrix.title': 'Matrix View',
-      'feature.matrix.desc': 'Import multiple PO or CSV files and merge them into a single side-by-side matrix. One row per source text, one column per language.',
-      'feature.fidelity.title': 'PO Metadata Fidelity',
-      'feature.fidelity.desc': 'msgctxt, msgid_plural, comments, references, flags, and obsolete entries are fully preserved. The matrix is just a UI projection — your files stay intact.',
-      'feature.local.title': 'Local-First',
-      'feature.local.desc': 'No cloud lock-in, no SaaS subscriptions. Your translation files stay on your machine. Direct overwrite saving with read-verify integrity checks.',
-      'feature.ai.title': 'AI Suggestions',
-      'feature.ai.desc': 'Connect your own OpenAI-compatible or DeepL API. Get translation suggestions for the active cell — suggestions, not automatic overwrites.',
-      'feature.tags.title': 'Obsidian-Style Tags',
-      'feature.tags.desc': 'Two-tier tagging: Source Tags shared across all languages per entry, and Word Tags bound to individual cells. Filter, search, and organize with #ui, #review, #todo.',
-      'feature.batch.title': 'Batch & Excel-Like Edit',
-      'feature.batch.desc': 'Multi-select cells, bulk copy-paste, batch fill, find & replace across languages. Full undo/redo support. Edit directly in cells or in a spacious detail panel.',
+      'feature.1.title': 'Side-by-Side Matrix Editing',
+      'feature.1.desc': 'See all language translations for a single source text in one unified view. No more switching between files.',
+      'feature.2.title': 'Import & Merge Multiple Files',
+      'feature.2.desc': 'Import multiple PO or CSV files and merge them into a single side-by-side matrix. One row per source text, one column per language.',
+      'feature.3.title': 'PO Metadata Fidelity',
+      'feature.3.desc': 'msgctxt, msgid_plural, comments, references, flags, and obsolete entries are fully preserved. The matrix is just a UI projection — your files stay intact.',
+      'feature.4.title': 'Local-First',
+      'feature.4.desc': 'No cloud lock-in, no SaaS subscriptions. Your translation files stay on your machine. Direct overwrite saving with read-verify integrity checks.',
+      'feature.5.title': 'AI Suggestions',
+      'feature.5.desc': 'Connect your own OpenAI-compatible or DeepL API. Get translation suggestions for the active cell — suggestions, not automatic overwrites.',
+      'feature.6.title': 'Obsidian-Style Tags',
+      'feature.6.desc': 'Two-tier tagging: Source Tags shared across all languages per entry, and Word Tags bound to individual cells. Filter, search, and organize with #ui, #review, #todo.',
+      'feature.7.title': 'Batch & Excel-Like Edit',
+      'feature.7.desc': 'Multi-select cells, bulk copy-paste, batch fill, find & replace across languages. Full undo/redo support. Edit directly in cells or in a spacious detail panel.',
       'download.title': 'Use It Your Way',
       'download.desc': 'Browser or desktop — your choice. Both share the same core engine.',
       'download.web.title': 'Browser Version',
@@ -69,33 +62,26 @@
     },
     zh: {
       'nav.features': '功能特性',
-      'nav.demo': '演示',
-      'nav.download': '下载',
       'nav.tryOnline': '在线试用',
       'hero.badge': '开源 & 本地优先',
       'hero.title': 'Lingrid <span class="hero-title-accent">灵译</span>',
       'hero.subtitle': '轻量、现代、本地优先的 PO / CSV 多语言并排矩阵编辑器。为独立游戏开发者、小型软件团队和自由译者打造。',
       'hero.cta.try': '浏览器中试用',
       'hero.cta.download': '下载桌面版',
-      'hero.stat.formats': '双格式支持',
-      'hero.stat.languages': '多语言',
-      'hero.stat.local': '本地优先',
-      'matrix.title': '并排矩阵编辑',
-      'matrix.desc': '在同一视图中查看单条原文的所有语言译文。告别在多个文件间来回切换。',
-      'features.title': '为本地化工作流而生',
-      'features.desc': '每一项功能都围绕一个核心原则设计：多语言对齐应当毫不费力。',
-      'feature.matrix.title': '矩阵视图',
-      'feature.matrix.desc': '导入多个 PO 或 CSV 文件，合并为统一的并排矩阵。每行一条原文，每列一种语言。',
-      'feature.fidelity.title': 'PO 元数据保真',
-      'feature.fidelity.desc': '完整保留 msgctxt、msgid_plural、注释、引用、标记和废弃条目。矩阵只是 UI 投影——您的文件保持原样。',
-      'feature.local.title': '本地优先',
-      'feature.local.desc': '无云锁定，无 SaaS 订阅。翻译文件始终留在您的设备上。直接覆盖保存，带读写校验完整性检查。',
-      'feature.ai.title': 'AI 翻译建议',
-      'feature.ai.desc': '接入您自己的 OpenAI 兼容或 DeepL API。为当前单元格获取翻译建议——建议，而非自动覆盖。',
-      'feature.tags.title': 'Obsidian 风格标签',
-      'feature.tags.desc': '双层标签系统：Source Tag 按条目跨语言共享，Word Tag 绑定到具体单元格。用 #ui、#review、#todo 过滤、搜索和组织。',
-      'feature.batch.title': '批量与类 Excel 编辑',
-      'feature.batch.desc': '多选单元格、批量复制粘贴、批量填充、跨语言查找替换。完整支持撤销/重做。直接在单元格或宽敞详情面板中编辑。',
+      'feature.1.title': '并排矩阵编辑',
+      'feature.1.desc': '在同一视图中查看单条原文的所有语言译文。告别在多个文件间来回切换。',
+      'feature.2.title': '导入并合并多文件',
+      'feature.2.desc': '导入多个 PO 或 CSV 文件，合并为统一的并排矩阵。每行一条原文，每列一种语言。',
+      'feature.3.title': 'PO 元数据保真',
+      'feature.3.desc': '完整保留 msgctxt、msgid_plural、注释、引用、标记和废弃条目。矩阵只是 UI 投影——您的文件保持原样。',
+      'feature.4.title': '本地优先',
+      'feature.4.desc': '无云锁定，无 SaaS 订阅。翻译文件始终留在您的设备上。直接覆盖保存，带读写校验完整性检查。',
+      'feature.5.title': 'AI 翻译建议',
+      'feature.5.desc': '接入您自己的 OpenAI 兼容或 DeepL API。为当前单元格获取翻译建议——建议，而非自动覆盖。',
+      'feature.6.title': 'Obsidian 风格标签',
+      'feature.6.desc': '双层标签系统：Source Tag 按条目跨语言共享，Word Tag 绑定到具体单元格。用 #ui、#review、#todo 过滤、搜索和组织。',
+      'feature.7.title': '批量与类 Excel 编辑',
+      'feature.7.desc': '多选单元格、批量复制粘贴、批量填充、跨语言查找替换。完整支持撤销/重做。直接在单元格或宽敞详情面板中编辑。',
       'download.title': '选择您的方式',
       'download.desc': '浏览器或桌面端——由您选择。两者共享相同的核心引擎。',
       'download.web.title': '浏览器版',
@@ -140,6 +126,7 @@
     const t = translations[lang];
     if (!t) return;
 
+    // Update data-i18n elements
     document.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
       if (t[key] !== undefined) {
@@ -147,6 +134,26 @@
           el.innerHTML = t[key];
         } else {
           el.textContent = t[key];
+        }
+      }
+    });
+
+    // Update data-text-en/zh elements
+    document.querySelectorAll('[data-text-en][data-text-zh]').forEach(el => {
+      const text = lang === 'zh' ? el.getAttribute('data-text-zh') : el.getAttribute('data-text-en');
+      if (text !== null) {
+        // For table cells and other elements that may have child elements (like tags),
+        // only update text nodes, not innerHTML
+        if (el.querySelector('.tag, .tag-chip, .tag-row-tag')) {
+          // Element has child tags, update only direct text
+          const textNode = Array.from(el.childNodes).find(n => n.nodeType === 3);
+          if (textNode) {
+            textNode.textContent = text;
+          } else if (!el.querySelector('svg, .tag, .tag-chip, .tag-row-tag')) {
+            el.textContent = text;
+          }
+        } else {
+          el.textContent = text;
         }
       }
     });

@@ -276,6 +276,8 @@ export function projectStats(project: LingridProject) {
   return { total: project.entries.length, languages, tags, changed };
 }
 
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
 export function loadRecentProjects(storage: StorageLike = window.localStorage): RecentProject[] {
   try {
     const raw = storage.getItem(RECENT_PROJECTS_KEY);
