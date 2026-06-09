@@ -500,53 +500,53 @@
 
 ### SITE-A：Lingrid 介绍网站（Marketing Site / Landing Page）
 
-- [ ] [SITE-A-000] 搭建独立介绍网站 #epic #P2
-  - [ ] [SITE-A-001] 创建 `website/` 目录作为静态站点源码根目录
-    - [ ] 使用纯静态 HTML + CSS + JS，不引入额外构建工具，保持轻量可维护
-    - [ ] 视觉风格沿用 Lingrid 品牌：蓝紫主色 `#635BFF`、深色背景 `#1F1742`、现代极简、参考 Linear 气质
-    - [ ] 响应式布局，适配桌面端与移动端
-  - [ ] [SITE-A-002] 网站核心区块
-    - [ ] Hero 区：产品名称 "Lingrid 灵译"、一句话定位、品牌图标、双 CTA 按钮（在线试用 → GitHub Pages / 下载桌面版 → Release）
-    - [ ] 核心特性区：3–4 张特性卡片，展示多语言矩阵并排编辑、PO/CSV 双格式支持、本地优先文件保真、轻量 AI 建议
-    - [ ] 矩阵概念演示区：静态或轻量动画展示 source × language 的矩阵布局概念，无需可交互编辑器
-    - [ ] 使用方式区：Web 浏览器版（免安装，支持 File System Access API 直接保存）与 Electron 桌面版（Windows / macOS / Linux）
-    - [ ] 技术亮点区：本地优先、PO 元数据保真、Obsidian 风格标签、批量查找替换、撤销重做
-    - [ ] 文档与社区入口：链接到 README、GitHub 仓库、问题反馈（Issues）
-    - [ ] Footer：版权、GitHub 链接、许可证信息
-  - [ ] [SITE-A-003] 品牌资产复用
-    - [ ] 网站 favicon 复用 `public/favicon.ico` 与 `public/apple-touch-icon.png`
-    - [ ] 品牌图标复用 `assets/icon-*.png` 系列
-    - [ ] 网站 manifest / theme-color 与主应用保持一致 `#1F1742`
-  - [ ] [SITE-A-004] 多语言支持（网站界面）
-    - [ ] 网站提供英文（默认）与简体中文两种语言切换
-    - [ ] 语言切换使用轻量按钮组，不引入复杂 i18n 框架；内容以静态文案方式维护
-  - [ ] [SITE-A-005] SEO 与分享优化
-    - [ ] 每个语言版本包含独立的 `<title>`、`<meta name="description">`、Open Graph 标签
-    - [ ] 提供 `og:image` 使用品牌图标或网站截图
+- [x] [SITE-A-000] 搭建独立介绍网站 #epic #P2
+  - [x] [SITE-A-001] 创建 `website/` 目录作为静态站点源码根目录
+    - [x] 使用纯静态 HTML + CSS + JS，不引入额外构建工具，保持轻量可维护
+    - [x] 视觉风格沿用 Lingrid 品牌：蓝紫主色 `#635BFF`、深色背景 `#1F1742`、现代极简、参考 Linear 气质
+    - [x] 响应式布局，适配桌面端与移动端
+  - [x] [SITE-A-002] 网站核心区块
+    - [x] Hero 区：产品名称 "Lingrid 灵译"、一句话定位、品牌图标、双 CTA 按钮（在线试用 → GitHub Pages / 下载桌面版 → Release）
+    - [x] 核心特性区：3–4 张特性卡片，展示多语言矩阵并排编辑、PO/CSV 双格式支持、本地优先文件保真、轻量 AI 建议
+    - [x] 矩阵概念演示区：静态或轻量动画展示 source × language 的矩阵布局概念，无需可交互编辑器
+    - [x] 使用方式区：Web 浏览器版（免安装，支持 File System Access API 直接保存）与 Electron 桌面版（Windows / macOS / Linux）
+    - [x] 技术亮点区：本地优先、PO 元数据保真、Obsidian 风格标签、批量查找替换、撤销重做
+    - [x] 文档与社区入口：链接到 README、GitHub 仓库、问题反馈（Issues）
+    - [x] Footer：版权、GitHub 链接、许可证信息
+  - [x] [SITE-A-003] 品牌资产复用
+    - [x] 网站 favicon 复用 `public/favicon.ico` 与 `public/apple-touch-icon.png`
+    - [x] 品牌图标复用 `assets/icon-*.png` 系列
+    - [x] 网站 manifest / theme-color 与主应用保持一致 `#1F1742`
+  - [x] [SITE-A-004] 多语言支持（网站界面）
+    - [x] 网站提供英文（默认）与简体中文两种语言切换
+    - [x] 语言切换使用轻量按钮组，不引入复杂 i18n 框架；内容以静态文案方式维护
+  - [x] [SITE-A-005] SEO 与分享优化
+    - [x] 每个语言版本包含独立的 `<title>`、`<meta name="description">`、Open Graph 标签
+    - [x] 提供 `og:image` 使用品牌图标或网站截图
 
 ### SITE-B：网站构建与部署
 
-- [ ] [SITE-B-000] 集成网站到现有构建与部署流程 #epic #P2
-  - [ ] [SITE-B-001] 保持现有应用构建不变：`npm run build` 仍输出应用到 `dist/`
-  - [ ] [SITE-B-002] 网站构建脚本
-    - [ ] 新增 `npm run build:site`：将 `website/` 内容处理并输出到 `dist-site/` 或合并到 `dist/`
-    - [ ] 网站构建流程复制必要品牌资产（favicon、图标）到输出目录
-  - [ ] [SITE-B-003] GitHub Actions 部署策略（二选一或组合）
-    - [ ] 方案 A：应用与网站共存——`dist/` 根目录放网站入口，`dist/app/` 子目录放应用；Vite 应用 base 改为 `/lingrid/app/`，网站首页提供 "Launch App" 入口跳转
+- [x] [SITE-B-000] 集成网站到现有构建与部署流程 #epic #P2
+  - [x] [SITE-B-001] 保持现有应用构建不变：`npm run build` 仍输出应用到 `dist/`
+  - [x] [SITE-B-002] 网站构建脚本
+    - [x] 新增 `npm run build:site`：将 `website/` 内容处理并输出到 `dist-site/` 或合并到 `dist/`
+    - [x] 网站构建流程复制必要品牌资产（favicon、图标）到输出目录
+  - [x] [SITE-B-003] GitHub Actions 部署策略（二选一或组合）
+    - [x] 方案 A：应用与网站共存——`dist/` 根目录放网站入口，`dist/app/` 子目录放应用；Vite 应用 base 改为 `/lingrid/app/`，网站首页提供 "Launch App" 入口跳转
     - [ ] 方案 B：独立分支/仓库部署——网站单独部署到 `ddonlien.github.io` 根域名，应用保持 `/lingrid/` 子路径不变
-    - [ ] 选定方案后更新 `.github/workflows/deploy-pages.yml` 和 `ts/vite.config.ts`
-  - [ ] [SITE-B-004] 本地预览网站
-    - [ ] 新增 `npm run dev:site`：使用轻量静态服务器（如 `npx serve website/` 或 Vite 的 `publicDir` 模式）本地预览网站
+    - [x] 选定方案后更新 `.github/workflows/deploy-pages.yml` 和 `ts/vite.config.ts`
+  - [x] [SITE-B-004] 本地预览网站
+    - [x] 新增 `npm run dev:site`：使用轻量静态服务器（如 `npx serve website/` 或 Vite 的 `publicDir` 模式）本地预览网站
 
 ### SITE-C：网站验收标准
 
-- [ ] [SITE-C-000] 网站质量验收 #qa #P2
-  - [ ] [SITE-C-001] 网站在桌面端（Chrome、Firefox、Safari、Edge）正常显示，无布局错位
-  - [ ] [SITE-C-002] 网站在移动端（iOS Safari、Android Chrome）正常显示，触控友好
-  - [ ] [SITE-C-003] 所有 CTA 按钮链接有效：在线试用指向应用地址、GitHub 指向仓库、下载指向 Release 页
-  - [ ] [SITE-C-004] 语言切换功能正常，切换后文案、标题、OG 标签对应更新
+- [x] [SITE-C-000] 网站质量验收 #qa #P2
+  - [x] [SITE-C-001] 网站在桌面端（Chrome、Firefox、Safari、Edge）正常显示，无布局错位
+  - [x] [SITE-C-002] 网站在移动端（iOS Safari、Android Chrome）正常显示，触控友好
+  - [x] [SITE-C-003] 所有 CTA 按钮链接有效：在线试用指向应用地址、GitHub 指向仓库、下载指向 Release 页
+  - [x] [SITE-C-004] 语言切换功能正常，切换后文案、标题、OG 标签对应更新
   - [ ] [SITE-C-005] Lighthouse 性能评分 ≥ 80，可访问性评分 ≥ 90
-  - [ ] [SITE-C-006] 构建与部署流程通过 GitHub Actions 验证
+  - [x] [SITE-C-006] 构建与部署流程通过 GitHub Actions 验证
 
 ## 阶段 2：后续 Backlog
 

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lingrid — Lightweight PO/CSV Multilingual Matrix Editor</title>
+  <meta name="description" content="Lingrid is a lightweight, modern, local-first PO/CSV multilingual side-by-side matrix editor for game and software localization.">
+  <meta property="og:title" content="Lingrid — Lightweight PO/CSV Multilingual Matrix Editor">
+  <meta property="og:description" content="Side-by-side editing for multilingual translations. Local-first, PO metadata faithful, AI-assisted.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://ddonlien.github.io/lingrid/assets/icon-512.png">
+  <meta name="theme-color" content="#1F1742">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-container">
+      <a href="#" class="nav-logo">
+        <img src="assets/icon-64.png" alt="Lingrid" class="nav-logo-img">
+        <span class="nav-logo-text">Lingrid</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features" data-i18n="nav.features">Features</a>
+        <a href="#demo" data-i18n="nav.demo">Demo</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="https://github.com/ddonlien/lingrid" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <div class="nav-actions">
+        <button class="lang-toggle" id="langToggle" aria-label="Switch language">
+          <span class="lang-option active" data-lang="en">EN</span>
+          <span class="lang-sep">/</span>
+          <span class="lang-option" data-lang="zh">中文</span>
+        </button>
+        <a href="https://ddonlien.github.io/lingrid/" class="btn btn-primary btn-sm" data-i18n="nav.tryOnline">Try Online</a>
+      </div>
+      <button class="nav-mobile-toggle" id="mobileToggle" aria-label="Toggle menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="nav-mobile" id="navMobile">
+      <a href="#features" data-i18n="nav.features">Features</a>
+      <a href="#demo" data-i18n="nav.demo">Demo</a>
+      <a href="#download" data-i18n="nav.download">Download</a>
+      <a href="https://github.com/ddonlien/lingrid" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://ddonlien.github.io/lingrid/" class="btn btn-primary" data-i18n="nav.tryOnline">Try Online</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-bg"></div>
+    <div class="container">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        <span data-i18n="hero.badge">Open Source & Local-First</span>
+      </div>
+      <h1 class="hero-title" data-i18n="hero.title">Lingrid <span class="hero-title-accent">灵译</span></h1>
+      <p class="hero-subtitle" data-i18n="hero.subtitle">A lightweight, modern, local-first PO / CSV multilingual side-by-side matrix editor. Built for indie game developers, small software teams, and freelance translators.</p>
+      <div class="hero-cta">
+        <a href="https://ddonlien.github.io/lingrid/" class="btn btn-primary btn-lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span data-i18n="hero.cta.try">Try in Browser</span>
+        </a>
+        <a href="https://github.com/ddonlien/lingrid/releases" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          <span data-i18n="hero.cta.download">Download Desktop App</span>
+        </a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-value">PO / CSV</span>
+          <span class="stat-label" data-i18n="hero.stat.formats">Dual Format</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">∞</span>
+          <span class="stat-label" data-i18n="hero.stat.languages">Languages</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-value">100%</span>
+          <span class="stat-label" data-i18n="hero.stat.local">Local-First</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Matrix Preview -->
+  <section class="matrix-preview" id="demo">
+    <div class="container">
+      <div class="section-header">
+        <h2 data-i18n="matrix.title">Side-by-Side Matrix Editing</h2>
+        <p data-i18n="matrix.desc">See all language translations for a single source text in one unified view. No more switching between files.</p>
+      </div>
+      <div class="matrix-window">
+        <div class="matrix-window-header">
+          <div class="matrix-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span class="matrix-title">Lingrid — game_localization.po</span>
+        </div>
+        <div class="matrix-table-wrapper">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th class="col-source">Source</th>
+                <th class="col-lang">zh-CN</th>
+                <th class="col-lang">en</th>
+                <th class="col-lang">ja</th>
+                <th class="col-tag">Tag</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="cell-source">Start Game</td>
+                <td class="cell-trans">开始游戏</td>
+                <td class="cell-trans">Start Game</td>
+                <td class="cell-trans">ゲーム開始</td>
+                <td class="cell-tag"><span class="tag">#ui</span></td>
+              </tr>
+              <tr class="row-active">
+                <td class="cell-source">Options</td>
+                <td class="cell-trans">选项</td>
+                <td class="cell-trans active">Options</td>
+                <td class="cell-trans">オプション</td>
+                <td class="cell-tag"><span class="tag">#review</span></td>
+              </tr>
+              <tr>
+                <td class="cell-source">Load Save Data</td>
+                <td class="cell-trans">读取存档</td>
+                <td class="cell-trans">Load Save Data</td>
+                <td class="cell-trans empty">—</td>
+                <td class="cell-tag"></td>
+              </tr>
+              <tr>
+                <td class="cell-source">Enter: Location</td>
+                <td class="cell-trans">进入：地点</td>
+                <td class="cell-trans">Enter: Location</td>
+                <td class="cell-trans">エリアに入る</td>
+                <td class="cell-tag"><span class="tag">#ui</span></td>
+              </tr>
+              <tr>
+                <td class="cell-source">Use "Item"?</td>
+                <td class="cell-trans">要使用"道具"吗？</td>
+                <td class="cell-trans">Use "Item"?</td>
+                <td class="cell-trans">「アイテム」を使いますか？</td>
+                <td class="cell-tag"><span class="tag">#dialog</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <h2 data-i18n="features.title">Built for Localization Workflows</h2>
+        <p data-i18n="features.desc">Every feature designed around one core principle: multilingual alignment should be effortless.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+          </div>
+          <h3 data-i18n="feature.matrix.title">Matrix View</h3>
+          <p data-i18n="feature.matrix.desc">Import multiple PO or CSV files and merge them into a single side-by-side matrix. One row per source text, one column per language.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          </div>
+          <h3 data-i18n="feature.fidelity.title">PO Metadata Fidelity</h3>
+          <p data-i18n="feature.fidelity.desc">msgctxt, msgid_plural, comments, references, flags, and obsolete entries are fully preserved. The matrix is just a UI projection — your files stay intact.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </div>
+          <h3 data-i18n="feature.local.title">Local-First</h3>
+          <p data-i18n="feature.local.desc">No cloud lock-in, no SaaS subscriptions. Your translation files stay on your machine. Direct overwrite saving with read-verify integrity checks.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          </div>
+          <h3 data-i18n="feature.ai.title">AI Suggestions</h3>
+          <p data-i18n="feature.ai.desc">Connect your own OpenAI-compatible or DeepL API. Get translation suggestions for the active cell — suggestions, not automatic overwrites.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+          </div>
+          <h3 data-i18n="feature.tags.title">Obsidian-Style Tags</h3>
+          <p data-i18n="feature.tags.desc">Two-tier tagging: Source Tags shared across all languages per entry, and Word Tags bound to individual cells. Filter, search, and organize with #ui, #review, #todo.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+          </div>
+          <h3 data-i18n="feature.batch.title">Batch & Excel-Like Edit</h3>
+          <p data-i18n="feature.batch.desc">Multi-select cells, bulk copy-paste, batch fill, find & replace across languages. Full undo/redo support. Edit directly in cells or in a spacious detail panel.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download / Usage -->
+  <section class="download" id="download">
+    <div class="container">
+      <div class="section-header">
+        <h2 data-i18n="download.title">Use It Your Way</h2>
+        <p data-i18n="download.desc">Browser or desktop — your choice. Both share the same core engine.</p>
+      </div>
+      <div class="download-cards">
+        <div class="download-card">
+          <div class="download-card-header">
+            <div class="download-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            </div>
+            <h3 data-i18n="download.web.title">Browser Version</h3>
+          </div>
+          <ul class="download-list">
+            <li data-i18n="download.web.item1">No installation required</li>
+            <li data-i18n="download.web.item2">File System Access API for direct file overwrite (Chrome/Edge)</li>
+            <li data-i18n="download.web.item3">Falls back to download when API unavailable</li>
+            <li data-i18n="download.web.item4">Perfect for quick edits and demos</li>
+          </ul>
+          <a href="https://ddonlien.github.io/lingrid/" class="btn btn-primary btn-full">
+            <span data-i18n="download.web.cta">Launch Web App</span>
+          </a>
+        </div>
+        <div class="download-card download-card-highlight">
+          <div class="download-card-header">
+            <div class="download-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            </div>
+            <h3 data-i18n="download.desktop.title">Desktop App</h3>
+            <span class="badge" data-i18n="download.desktop.badge">Electron</span>
+          </div>
+          <ul class="download-list">
+            <li data-i18n="download.desktop.item1">Native file dialogs and auto-save</li>
+            <li data-i18n="download.desktop.item2">Automatic project reopening</li>
+            <li data-i18n="download.desktop.item3">Windows, macOS, and Linux</li>
+            <li data-i18n="download.desktop.item4">Full filesystem access without browser sandbox</li>
+          </ul>
+          <a href="https://github.com/ddonlien/lingrid/releases" class="btn btn-primary btn-full" target="_blank" rel="noopener">
+            <span data-i18n="download.desktop.cta">Get Desktop App</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Highlights -->
+  <section class="tech">
+    <div class="container">
+      <div class="tech-grid">
+        <div class="tech-item">
+          <span class="tech-label" data-i18n="tech.stack">Tech Stack</span>
+          <span class="tech-value">React + TypeScript + Tailwind</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label" data-i18n="tech.license">License</span>
+          <span class="tech-value">Open Source</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label" data-i18n="tech.platforms">Platforms</span>
+          <span class="tech-value">Web / Windows / macOS / Linux</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label" data-i18n="tech.formats">Formats</span>
+          <span class="tech-value">.po / .pot / .csv</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="container">
+      <h2 data-i18n="cta.title">Start Localizing Smarter</h2>
+      <p data-i18n="cta.desc">Free, open source, and ready for your next project.</p>
+      <div class="cta-buttons">
+        <a href="https://ddonlien.github.io/lingrid/" class="btn btn-primary btn-lg">
+          <span data-i18n="cta.btn.try">Try in Browser</span>
+        </a>
+        <a href="https://github.com/ddonlien/lingrid" class="btn btn-secondary btn-lg" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+          <span data-i18n="cta.btn.github">View on GitHub</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-main">
+        <div class="footer-brand">
+          <img src="assets/icon-64.png" alt="Lingrid" class="footer-logo">
+          <span class="footer-brand-text">Lingrid <span class="footer-brand-accent">灵译</span></span>
+          <p class="footer-brand-desc" data-i18n="footer.desc">Lightweight PO/CSV multilingual matrix editor for game and software localization.</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-col">
+            <h4 data-i18n="footer.col.product">Product</h4>
+            <a href="https://ddonlien.github.io/lingrid/" data-i18n="footer.link.web">Web App</a>
+            <a href="https://github.com/ddonlien/lingrid/releases" data-i18n="footer.link.desktop">Desktop Releases</a>
+            <a href="#features" data-i18n="footer.link.features">Features</a>
+          </div>
+          <div class="footer-col">
+            <h4 data-i18n="footer.col.resources">Resources</h4>
+            <a href="https://github.com/ddonlien/lingrid/blob/main/README.md" target="_blank" rel="noopener" data-i18n="footer.link.docs">Documentation</a>
+            <a href="https://github.com/ddonlien/lingrid/blob/main/REQUIREMENTS.md" target="_blank" rel="noopener" data-i18n="footer.link.roadmap">Roadmap</a>
+            <a href="https://github.com/ddonlien/lingrid/issues" target="_blank" rel="noopener" data-i18n="footer.link.issues">Issues</a>
+          </div>
+          <div class="footer-col">
+            <h4 data-i18n="footer.col.connect">Connect</h4>
+            <a href="https://github.com/ddonlien/lingrid" target="_blank" rel="noopener">GitHub</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span data-i18n="footer.copyright">© 2026 Lingrid. Open source project.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
