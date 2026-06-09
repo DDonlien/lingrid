@@ -4,3 +4,7 @@ msgstr ""
 msgctxt "menu.start"
 msgid "Start Game"
 msgstr ""
+
+msgctxt "npc.arrow"
+msgid "I used to be an adventurer like you, then I took an arrow in the knee."
+msgstr ""

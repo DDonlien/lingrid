@@ -15,5 +15,10 @@ msgctxt "menu.continue"
 msgid "Continue"
 msgstr ""
 
+#: src/npc.ts:20
+msgctxt "npc.arrow"
+msgid "I used to be an adventurer like you, then I took an arrow in the knee."
+msgstr "我以前也和你一样是个冒险者，直到我的膝盖中了一箭。"
+
 #~ msgid "Old option"
 #~ msgstr "旧选项"

@@ -115,6 +115,22 @@ const DEMO_ROWS: DemoRow[] = [
     },
   },
   {
+    key: "npc.arrow",
+    tags: ["#npc", "#review"],
+    source: {
+      "zh-CN": "我以前也和你一样是个冒险者，直到我的膝盖中了一箭。",
+      en: "I used to be an adventurer like you, then I took an arrow in the knee.",
+      ja: "昔は君のような冒険者だったが、膝に矢を受けてしまってな。",
+    },
+    targets: {
+      "zh-CN": "我以前也和你一样是个冒险者，直到我的膝盖中了一箭。",
+      en: "I used to be an adventurer like you, then I took an arrow in the knee.",
+      ja: "昔は君のような冒険者だったが、膝に矢を受けてしまってな。",
+      ko: "",
+      ru: "",
+    },
+  },
+  {
     key: "inventory.empty",
     tags: ["#gameplay"],
     source: {

@@ -12,3 +12,8 @@ msgstr "ゲーム開始"
 msgctxt "menu.continue"
 msgid "Continue"
 msgstr ""
+
+#: src/npc.ts:20
+msgctxt "npc.arrow"
+msgid "I used to be an adventurer like you, then I took an arrow in the knee."
+msgstr ""

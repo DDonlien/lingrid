@@ -22,6 +22,8 @@ describe("demo project", () => {
     expect(zh.entries.find((entry) => entry.context === "menu.continue")?.source).toBe("继续冒险");
     expect(en.entries.find((entry) => entry.context === "menu.continue")?.source).toBe("Continue");
     expect(ja.entries.find((entry) => entry.context === "menu.continue")?.source).toBe("つづきから");
+    expect(zh.entries.find((entry) => entry.context === "npc.arrow")?.source).toBe("我以前也和你一样是个冒险者，直到我的膝盖中了一箭。");
+    expect(en.entries.find((entry) => entry.context === "npc.arrow")?.source).toBe("I used to be an adventurer like you, then I took an arrow in the knee.");
   });
 
   it("includes Korean, Russian, and punctuation-oriented demo entries", () => {

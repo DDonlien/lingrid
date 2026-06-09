@@ -39,9 +39,10 @@ describe("PO adapter", () => {
     const zh = parsePo(po("zh-CN.po"));
     const ja = parsePo(po("ja.po"));
     const merged = mergeEntries(zh, ja);
-    expect(merged).toHaveLength(2);
+    expect(merged).toHaveLength(3);
     expect(merged[0].translations["zh-CN"].value).toBe("开始游戏");
     expect(merged[0].translations.ja.value).toBe("ゲーム開始");
+    expect(merged.find((entry) => entry.context === "npc.arrow")?.translations["zh-CN"].value).toBe("我以前也和你一样是个冒险者，直到我的膝盖中了一箭。");
   });
 
   it("updates msgstr while preserving PO metadata and order", () => {
@@ -291,13 +292,13 @@ describe("Project state", () => {
     project.entries = entries;
     project.columnOrder = ["zh-CN", "ja"];
     project.view.tags = [EMPTY_TAG_FILTER];
-    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue", "I used to be an adventurer like you, then I took an arrow in the knee."]);
     project.view.tags = [];
     project.view.wordTags = [EMPTY_TAG_FILTER];
     project.view.wordTagLanguages = ["zh-CN"];
-    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue", "I used to be an adventurer like you, then I took an arrow in the knee."]);
     project.view.wordTags = ["#review", EMPTY_TAG_FILTER];
-    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Start Game", "Continue"]);
+    expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Start Game", "Continue", "I used to be an adventurer like you, then I took an arrow in the knee."]);
   });
 
   it("filters source, translations, tags and changed cells", () => {
@@ -307,7 +308,7 @@ describe("Project state", () => {
     entries[0].translations["zh-CN"].changed = true;
     const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], changedOnly: true, tags: ["#ui"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project)).toHaveLength(1);
-    expect(projectStats(project)).toEqual({ total: 2, languages: { "zh-CN": { translated: 1, missing: 1, total: 2, completion: 50 } }, tags: { "#ui": 1 }, changed: 1 });
+    expect(projectStats(project)).toEqual({ total: 3, languages: { "zh-CN": { translated: 2, missing: 1, total: 3, completion: 67 } }, tags: { "#ui": 1 }, changed: 1 });
   });
 
   it("excludes matrix-only language gaps from completion statistics and filters until force-fill is enabled", () => {
