@@ -159,9 +159,9 @@ describe("Browser source saving", () => {
 
   it("preflights browser file permission and external modifications before writing", async () => {
     const file = fileHandle();
-    await expect(verifyBrowserFileWritable(file.handle, 1, "GAME.po")).resolves.toBeUndefined();
+    await expect(verifyBrowserFileWritable(file.handle, 1, "en/GAME.po")).resolves.toBeUndefined();
     expect(file.content()).toBe("before");
-    await expect(verifyBrowserFileWritable(file.handle, 99, "GAME.po")).rejects.toThrow("File changed outside Lingrid: GAME.po");
+    await expect(verifyBrowserFileWritable(file.handle, 99, "en/GAME.po")).rejects.toThrow("File changed outside Lingrid: en/GAME.po");
     expect(file.content()).toBe("before");
   });
 });

@@ -23,8 +23,8 @@ import {
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
-import { renderAiPromptTemplate } from "../core/ai";
-import { verifyBrowserFileWritable, writeBrowserFile } from "../core/browser-files";
+import { rateLimitRetryDelayMs, renderAiPromptTemplate, runAdaptiveConcurrentBatch } from "../core/ai";
+import { writeBrowserFile } from "../core/browser-files";
 import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
 import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { DEEPL_ENDPOINTS, ProviderHttpError as DeepLProviderHttpError, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
@@ -304,6 +304,10 @@ function createDocument(name: string, path: string, raw: string, modifiedAt?: nu
   };
 }
 
+function sourceDocumentLabel(document: SourceDocument): string {
+  return document.path || document.name;
+}
+
 function Button({
   children,
   onClick,
@@ -435,6 +439,7 @@ export function App() {
   const cellInputs = useRef(new Map<string, HTMLInputElement>());
   const draggedHeader = useRef(false);
   const resizingColumn = useRef<{ column: string; startX: number; startWidth: number } | null>(null);
+  const saveInFlight = useRef<Promise<void> | null>(null);
   const deferredSearch = useDeferredValue(project.view.search);
   useEffect(() => {
     localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
@@ -476,6 +481,11 @@ export function App() {
       return { name: error.name, message: error.message };
     }
     return { error: String(error) };
+  }
+
+  function aiRateLimitDelayMs(error: unknown): number | undefined {
+    const details = describeAiError(error);
+    return rateLimitRetryDelayMs(details.status, details.bodyPreview);
   }
 
   function aiErrorNotice(provider: AiProvider, error: unknown): string {
@@ -717,10 +727,10 @@ export function App() {
     }));
   }
 
-  function applyMatrixValues(values: Array<{ cell: MatrixCellSelection; value: string }>) {
+  function applyMatrixValues(values: Array<{ cell: MatrixCellSelection; value: string }>, options: { recordHistory?: boolean } = {}) {
     setSourceSaveStatus({ kind: "idle" });
     const uniqueValues = [...new Map(values.map((item) => [matrixCellKey(item.cell.key, item.cell.column), item])).values()];
-    recordEditHistory();
+    if (options.recordHistory !== false) recordEditHistory();
     setCellDrafts((drafts) => {
       const next = { ...drafts };
       uniqueValues.forEach(({ cell }) => {
@@ -1127,7 +1137,7 @@ export function App() {
     return { files, missingPaths };
   }
 
-  async function saveSources() {
+  async function runSaveSources() {
     const entries = applyCellDrafts(project.entries);
     let documents = [...project.documents];
     appendDiagnostic("save.start", { documents: documents.length, changedCells: changedCount, drafts: Object.keys(cellDrafts).length, electron: Boolean(window.lingrid) });
@@ -1158,22 +1168,19 @@ export function App() {
         setNotice(t.downloadedCopy);
         return;
       }
-      await Promise.all(serialized.map(async ({ document, raw }) => {
-        if (!document.writable || raw === document.raw || !document.fileHandle || (window.lingrid && document.path)) return;
-        await verifyBrowserFileWritable(document.fileHandle, document.modifiedAt, document.name, appendDiagnostic);
-      }));
       for (let index = 0; index < documents.length; index += 1) {
         const document = documents[index];
         if (!document.writable) continue;
         const raw = serialized[index].raw;
         if (raw === document.raw) continue;
+        const label = sourceDocumentLabel(document);
         let modifiedAt = document.modifiedAt;
         if (window.lingrid && document.path) {
           modifiedAt = await window.lingrid.writeFile(document.path, raw, document.modifiedAt);
         } else if (document.fileHandle) {
-          modifiedAt = await writeBrowserFile(document.fileHandle, raw, document.modifiedAt, document.name, appendDiagnostic);
+          modifiedAt = await writeBrowserFile(document.fileHandle, raw, document.modifiedAt, label, appendDiagnostic);
         } else {
-          throw new Error(`Direct source saving needs a retained local file handle for ${document.name}. Reopen it in a File System Access API browser or use Electron.`);
+          throw new Error(`Direct source saving needs a retained local file handle for ${label}. Reopen it in a File System Access API browser or use Electron.`);
         }
         documents[index] = { ...document, raw, modifiedAt };
       }
@@ -1204,6 +1211,18 @@ export function App() {
       setSourceSaveStatus({ kind: "error", message });
       setNotice(`${sourceFormatLabel(project)} ${t.saveFailed}: ${message}`);
     }
+  }
+
+  async function saveSources() {
+    if (saveInFlight.current) {
+      appendDiagnostic("save.reused", { reason: "already-running" });
+      return saveInFlight.current;
+    }
+    const task = runSaveSources().finally(() => {
+      if (saveInFlight.current === task) saveInFlight.current = null;
+    });
+    saveInFlight.current = task;
+    return task;
   }
 
   async function saveProject(asNew = false) {
@@ -1432,29 +1451,27 @@ export function App() {
     }
     setAiBusy(true);
     setSuggestion("");
-    let failed = 0;
-    let skipped = 0;
-    const updates: Array<{ cell: MatrixCellSelection; value: string }> = [];
+    recordEditHistory();
     try {
-      for (let index = 0; index < targets.length; index += 1) {
-        const target = targets[index];
-        setNotice(`AI translating ${index + 1} / ${targets.length}`);
-        try {
+      const summary = await runAdaptiveConcurrentBatch({
+        items: targets,
+        initialConcurrency: 4,
+        retryDelayMs: aiRateLimitDelayMs,
+        worker: async (target) => {
           const result = await requestAiTranslation(target.entry, target.language);
           const text = result.text.trim();
-          if (!text) {
-            skipped += 1;
-            continue;
-          }
-          updates.push({ cell: { key: target.entry.key, column: target.language }, value: text });
-        } catch (error) {
-          failed += 1;
+          return text ? { cell: { key: target.entry.key, column: target.language }, value: text } : undefined;
+        },
+        onSuccess: (update) => applyMatrixValues([update], { recordHistory: false }),
+        onError: (error, target, index) => {
           appendDiagnostic("ai.batch.item.error", { index, language: target.language, sourceLength: target.entry.source.length, ...describeAiError(error) });
-        }
-      }
-      if (updates.length) applyMatrixValues(updates);
-      appendDiagnostic("ai.batch.summary", { provider: ai.provider, total: targets.length, written: updates.length, skipped, failed });
-      setNotice(`AI translated ${updates.length}; skipped ${skipped}; failed ${failed}.`);
+        },
+        onProgress: (completed, total, current) => {
+          setNotice(`AI translating ${completed} / ${total}; written ${current.written}; failed ${current.failed}${current.rateLimited ? "; rate limited, slowing down" : ""}.`);
+        },
+      });
+      appendDiagnostic("ai.batch.summary", { provider: ai.provider, ...summary });
+      setNotice(`AI translated ${summary.written}; skipped ${summary.skipped}; failed ${summary.failed}${summary.rateLimited ? "; rate limit handled by retry." : "."}`);
     } finally {
       setAiBusy(false);
     }
