@@ -79,55 +79,92 @@
         <h2 data-i18n="feature.1.title">Side-by-Side Matrix Editing</h2>
         <p data-i18n="feature.1.desc">See all language translations for a single source text in one unified view. No more switching between files.</p>
       </div>
-      <div class="demo-panel" data-demo="matrix">
-        <div class="demo-window">
-          <div class="demo-window-header">
-            <div class="demo-dots"><span></span><span></span><span></span></div>
-            <span class="demo-title">game_localization.po</span>
+      <div class="app-screenshot" data-screenshot="matrix">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <!-- Topbar -->
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span data-text-en="Open" data-text-zh="打开"></span></button>
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span data-text-en="Import CSV" data-text-zh="导入 CSV"></span></button>
+              <span class="separator"></span>
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save" data-text-zh="保存"></span></button>
+            </nav>
+            <div class="toolbar right">
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span data-text-en="Batch Replace" data-text-zh="批量替换"></span></button>
+              <button class="button soft"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg><span data-text-en="AI Settings" data-text-zh="AI 设置"></span></button>
+            </div>
+          </header>
+          <!-- Filterbar -->
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <button class="filter-toggle active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span data-text-en="All entries" data-text-zh="全部条目"></span></button>
+            <button class="filter-toggle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span data-text-en="Edit Status" data-text-zh="修改状态"></span></button>
+            <span class="filter-result">5 / 5</span>
+          </section>
+          <!-- Workspace -->
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="source-col"><strong>Start Game</strong></td>
+                    <td class="translation-cell"><input value="开始游戏" readonly></td>
+                    <td class="translation-cell"><input value="Start Game" readonly></td>
+                    <td class="translation-cell"><input value="ゲーム開始" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#ui</span></span></td>
+                  </tr>
+                  <tr class="selected-row">
+                    <td class="source-col"><strong>Options</strong></td>
+                    <td class="translation-cell"><input value="选项" readonly></td>
+                    <td class="translation-cell selected-cell"><input value="Options" readonly></td>
+                    <td class="translation-cell"><input value="オプション" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#review</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Load Save Data</strong></td>
+                    <td class="translation-cell"><input value="读取存档" readonly></td>
+                    <td class="translation-cell"><input value="Load Save Data" readonly></td>
+                    <td class="translation-cell"><input value="" placeholder="Missing translation" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Enter: Location</strong><small>menu.location</small></td>
+                    <td class="translation-cell"><input value="进入：地点" readonly></td>
+                    <td class="translation-cell"><input value="Enter: Location" readonly></td>
+                    <td class="translation-cell"><input value="エリアに入る" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#ui</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Use "Item"?</strong></td>
+                    <td class="translation-cell"><input value="要使用"道具"吗？" readonly></td>
+                    <td class="translation-cell"><input value="Use "Item"?" readonly></td>
+                    <td class="translation-cell"><input value="「アイテム」を使いますか？" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#dialog</span></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <header><div><span>Detail Editor</span><h2>EN</h2></div></header>
+              <label class="field-label">Source</label><div class="source-preview">Options</div>
+              <label class="field-label">Translation</label>
+              <textarea class="translation-area" readonly>Options</textarea>
+              <section class="ai-panel">
+                <div class="panel-heading"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI Suggestion</span><button class="button soft">Generate</button></div>
+                <p>Generate a suggestion for the selected cell.</p>
+              </section>
+              <section class="stats">
+                <div class="panel-heading"><span>Completion</span></div>
+                <div class="stat"><div><span>简中</span><b>100%</b></div><div class="progress"><i style="width: 100%"></i></div><small>5 / 5 translated</small></div>
+                <div class="stat"><div><span>EN</span><b>100%</b></div><div class="progress"><i style="width: 100%"></i></div><small>5 / 5 translated</small></div>
+                <div class="stat"><div><span>JA</span><b>80%</b></div><div class="progress"><i style="width: 80%"></i></div><small>4 / 5 translated</small></div>
+              </section>
+            </aside>
           </div>
-          <div class="demo-table-wrapper">
-            <table class="demo-table">
-              <thead>
-                <tr>
-                  <th class="col-source">Source</th>
-                  <th class="col-lang">zh-CN</th>
-                  <th class="col-lang">en</th>
-                  <th class="col-lang">ja</th>
-                  <th class="col-tag">Tag</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="demo-row" data-delay="0">
-                  <td class="cell-source" data-text-en="Start Game" data-text-zh="开始游戏"></td>
-                  <td class="cell-trans" data-text-en="Start Game" data-text-zh="开始游戏"></td>
-                  <td class="cell-trans" data-text-en="Start Game" data-text-zh="Start Game"></td>
-                  <td class="cell-trans" data-text-en="ゲーム開始" data-text-zh="ゲーム開始"></td>
-                  <td class="cell-tag"><span class="tag">#ui</span></td>
-                </tr>
-                <tr class="demo-row" data-delay="1">
-                  <td class="cell-source" data-text-en="Options" data-text-zh="选项"></td>
-                  <td class="cell-trans" data-text-en="选项" data-text-zh="选项"></td>
-                  <td class="cell-trans" data-text-en="Options" data-text-zh="Options"></td>
-                  <td class="cell-trans" data-text-en="オプション" data-text-zh="オプション"></td>
-                  <td class="cell-tag"><span class="tag">#review</span></td>
-                </tr>
-                <tr class="demo-row active" data-delay="2">
-                  <td class="cell-source" data-text-en="Load Save Data" data-text-zh="读取存档"></td>
-                  <td class="cell-trans" data-text-en="读取存档" data-text-zh="读取存档"></td>
-                  <td class="cell-trans" data-text-en="Load Save Data" data-text-zh="Load Save Data"></td>
-                  <td class="cell-trans empty" data-text-en="—" data-text-zh="—"></td>
-                  <td class="cell-tag"></td>
-                </tr>
-                <tr class="demo-row" data-delay="3">
-                  <td class="cell-source" data-text-en="Enter: Location" data-text-zh="进入：地点"></td>
-                  <td class="cell-trans" data-text-en="进入：地点" data-text-zh="进入：地点"></td>
-                  <td class="cell-trans" data-text-en="Enter: Location" data-text-zh="Enter: Location"></td>
-                  <td class="cell-trans" data-text-en="エリアに入る" data-text-zh="エリアに入る"></td>
-                  <td class="cell-tag"><span class="tag">#ui</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <!-- Statusbar -->
+          <div class="statusbar"><span><i class="saved"></i>All changes saved</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -141,44 +178,33 @@
         <h2 data-i18n="feature.2.title">Import & Merge Multiple Files</h2>
         <p data-i18n="feature.2.desc">Import multiple PO or CSV files and merge them into a single side-by-side matrix. One row per source text, one column per language.</p>
       </div>
-      <div class="demo-panel" data-demo="import">
-        <div class="demo-import">
-          <div class="import-file" data-delay="0">
-            <div class="import-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+      <div class="app-screenshot" data-screenshot="import">
+        <div class="app-shell" style="height: 380px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span data-text-en="Open" data-text-zh="打开"></span></button>
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span data-text-en="Import CSV" data-text-zh="导入 CSV"></span></button>
+            </nav>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <span class="filter-result">5 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0; display: block; padding: 40px;">
+            <div style="max-width: 480px; margin: 0 auto; text-align: center;">
+              <div style="width: 64px; height: 64px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; background: #eef2ff; border-radius: 16px; color: #635bff;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #27272a;" data-text-en="Open PO / POT / CSV Files" data-text-zh="打开 PO / POT / CSV 文件"></h3>
+              <p style="font-size: 14px; color: #71717a; margin-bottom: 24px;" data-text-en="Select multiple translation files to merge into a matrix view." data-text-zh="选择多个翻译文件合并为矩阵视图。"></p>
+              <div style="display: flex; gap: 12px; justify-content: center;">
+                <button class="button primary" style="height: 36px; padding: 0 16px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><span data-text-en="Open Files" data-text-zh="打开文件"></span></button>
+                <button class="button" style="height: 36px; padding: 0 16px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span data-text-en="Open Project" data-text-zh="打开项目"></span></button>
+              </div>
             </div>
-            <div class="import-info">
-              <span class="import-name">zh-CN.po</span>
-              <span class="import-meta" data-text-en="128 entries · Chinese" data-text-zh="128 条目 · 中文"></span>
-            </div>
-            <span class="import-status ok">✓</span>
           </div>
-          <div class="import-arrow">↓</div>
-          <div class="import-file" data-delay="1">
-            <div class="import-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            </div>
-            <div class="import-info">
-              <span class="import-name">ja.po</span>
-              <span class="import-meta" data-text-en="128 entries · Japanese" data-text-zh="128 条目 · 日本語"></span>
-            </div>
-            <span class="import-status ok">✓</span>
-          </div>
-          <div class="import-arrow">↓</div>
-          <div class="import-file" data-delay="2">
-            <div class="import-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            </div>
-            <div class="import-info">
-              <span class="import-name">en.po</span>
-              <span class="import-meta" data-text-en="128 entries · English" data-text-zh="128 条目 · 英文"></span>
-            </div>
-            <span class="import-status ok">✓</span>
-          </div>
-          <div class="import-merge" data-delay="3">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
-            <span data-text-en="Merged Matrix" data-text-zh="合并为矩阵"></span>
-          </div>
+          <div class="statusbar"><span><i class="saved"></i>Ready</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -192,41 +218,48 @@
         <h2 data-i18n="feature.3.title">PO Metadata Fidelity</h2>
         <p data-i18n="feature.3.desc">msgctxt, msgid_plural, comments, references, flags, and obsolete entries are fully preserved. The matrix is just a UI projection — your files stay intact.</p>
       </div>
-      <div class="demo-panel" data-demo="metadata">
-        <div class="demo-metadata">
-          <div class="meta-panel" data-delay="0">
-            <div class="meta-header" data-text-en="Detail Editor" data-text-zh="详情编辑器"></div>
-            <div class="meta-field">
-              <span class="meta-label">msgctxt</span>
-              <span class="meta-value">menu.main</span>
-            </div>
-            <div class="meta-field">
-              <span class="meta-label">msgid</span>
-              <span class="meta-value">Start Game</span>
-            </div>
-            <div class="meta-field">
-              <span class="meta-label" data-text-en="References" data-text-zh="引用"></span>
-              <span class="meta-value">src/main.c:42</span>
-            </div>
-            <div class="meta-field">
-              <span class="meta-label" data-text-en="Flags" data-text-zh="标记"></span>
-              <span class="meta-value tag">fuzzy</span>
-            </div>
-            <div class="meta-field">
-              <span class="meta-label" data-text-en="Comments" data-text-zh="注释"></span>
-              <span class="meta-value comment"># Main menu button</span>
-            </div>
+      <div class="app-screenshot" data-screenshot="metadata">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save" data-text-zh="保存"></span></button>
+            </nav>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <span class="filter-result">1 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr class="selected-row">
+                    <td class="source-col"><strong>Start Game</strong><small>menu.main</small></td>
+                    <td class="translation-cell"><input value="开始游戏" readonly></td>
+                    <td class="translation-cell selected-cell"><input value="Start Game" readonly></td>
+                    <td class="translation-cell"><input value="ゲーム開始" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#ui</span></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <header><div><span>Detail Editor</span><h2>EN</h2></div></header>
+              <label class="field-label">Source</label><div class="source-preview">Start Game</div>
+              <label class="field-label">Key / Context</label><code>menu.main</code>
+              <label class="field-label">Translation</label>
+              <textarea class="translation-area" readonly>Start Game</textarea>
+              <label class="field-label">Source Tags</label>
+              <input class="text-input" value="#ui" readonly>
+              <section class="ai-panel">
+                <div class="panel-heading"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI Suggestion</span><button class="button soft">Generate</button></div>
+                <p>Generate a suggestion for the selected cell.</p>
+              </section>
+            </aside>
           </div>
-          <div class="meta-arrow">→</div>
-          <div class="meta-file" data-delay="1">
-            <div class="meta-file-header">game.po</div>
-            <pre class="meta-code"><code># Main menu button
-#: src/main.c:42
-#, fuzzy
-msgctxt menu.main
-msgid "Start Game"
-msgstr "开始游戏"</code></pre>
-          </div>
+          <div class="statusbar"><span><i class="saved"></i>All changes saved</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -240,28 +273,60 @@ msgstr "开始游戏"</code></pre>
         <h2 data-i18n="feature.4.title">Local-First</h2>
         <p data-i18n="feature.4.desc">No cloud lock-in, no SaaS subscriptions. Your translation files stay on your machine. Direct overwrite saving with read-verify integrity checks.</p>
       </div>
-      <div class="demo-panel" data-demo="save">
-        <div class="demo-save">
-          <div class="save-step" data-delay="0">
-            <div class="save-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-            </div>
-            <span class="save-label" data-text-en="Edit translations" data-text-zh="编辑译文"></span>
+      <div class="app-screenshot" data-screenshot="save">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save .po" data-text-zh="保存 .po"></span><span class="button-dirty"></span></button>
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save As" data-text-zh="另存为"></span></button>
+            </nav>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <span class="filter-result">5 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="source-col"><strong>Start Game</strong></td>
+                    <td class="translation-cell changed"><input value="开始游戏" readonly></td>
+                    <td class="translation-cell"><input value="Start Game" readonly></td>
+                    <td class="translation-cell"><input value="ゲーム開始" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#ui</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Options</strong></td>
+                    <td class="translation-cell changed"><input value="选项" readonly></td>
+                    <td class="translation-cell"><input value="Options" readonly></td>
+                    <td class="translation-cell"><input value="オプション" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#review</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Load Save Data</strong></td>
+                    <td class="translation-cell changed"><input value="读取存档" readonly></td>
+                    <td class="translation-cell"><input value="Load Save Data" readonly></td>
+                    <td class="translation-cell"><input value="" placeholder="Missing translation" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <header><div><span>Detail Editor</span><h2>简中</h2></div></header>
+              <label class="field-label">Source</label><div class="source-preview">Start Game</div>
+              <label class="field-label">Translation <span class="never-edited-badge">Never edited</span></label>
+              <textarea class="translation-area" readonly>开始游戏</textarea>
+              <section class="stats">
+                <div class="panel-heading"><span>Completion</span></div>
+                <div class="stat"><div><span>简中</span><b>100%</b></div><div class="progress"><i style="width: 100%"></i></div><small>5 / 5 translated</small></div>
+              </section>
+            </aside>
           </div>
-          <div class="save-connector"></div>
-          <div class="save-step" data-delay="1">
-            <div class="save-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            </div>
-            <span class="save-label" data-text-en="Verify readback" data-text-zh="校验回读"></span>
-          </div>
-          <div class="save-connector"></div>
-          <div class="save-step" data-delay="2">
-            <div class="save-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
-            </div>
-            <span class="save-label" data-text-en="Saved to source file" data-text-zh="保存到源文件"></span>
-          </div>
+          <div class="statusbar"><span><i class="unsaved"></i>2 source files · 3 changed cells</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -275,23 +340,50 @@ msgstr "开始游戏"</code></pre>
         <h2 data-i18n="feature.5.title">AI Suggestions</h2>
         <p data-i18n="feature.5.desc">Connect your own OpenAI-compatible or DeepL API. Get translation suggestions for the active cell — suggestions, not automatic overwrites.</p>
       </div>
-      <div class="demo-panel" data-demo="ai">
-        <div class="demo-ai">
-          <div class="ai-cell" data-delay="0">
-            <div class="ai-cell-label" data-text-en="Source" data-text-zh="原文"></div>
-            <div class="ai-cell-value">I used to be an adventurer like you, then I took an arrow in the knee.</div>
-          </div>
-          <div class="ai-arrow">↓</div>
-          <div class="ai-panel" data-delay="1">
-            <div class="ai-panel-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-              <span data-text-en="AI Suggestion" data-text-zh="AI 建议"></span>
+      <div class="app-screenshot" data-screenshot="ai">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save" data-text-zh="保存"></span></button>
+            </nav>
+            <div class="toolbar right">
+              <button class="button soft"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg><span data-text-en="AI Settings" data-text-zh="AI 设置"></span></button>
             </div>
-            <div class="ai-suggestion">
-              <span class="ai-typewriter" data-text-en="I used to be an adventurer like you, until I took an arrow to the knee." data-text-zh="我以前也和你一样是个冒险者，直到我的膝盖中了一箭。"></span>
-              <span class="ai-cursor">|</span>
-            </div>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <span class="filter-result">5 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr class="selected-row">
+                    <td class="source-col"><strong>I used to be an adventurer like you, then I took an arrow in the knee.</strong></td>
+                    <td class="translation-cell"><input value="我以前也和你一样是个冒险者，直到我的膝盖中了一箭。" readonly></td>
+                    <td class="translation-cell selected-cell"><input value="I used to be an adventurer like you, then I took an arrow in the knee." readonly></td>
+                    <td class="translation-cell"><input value="" placeholder="Missing translation" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#dialog</span></span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <header><div><span>Detail Editor</span><h2>JA</h2></div></header>
+              <label class="field-label">Source</label><div class="source-preview">I used to be an adventurer like you, then I took an arrow in the knee.</div>
+              <label class="field-label">Translation</label>
+              <textarea class="translation-area" readonly></textarea>
+              <section class="ai-panel">
+                <div class="panel-heading"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI Suggestion</span><button class="button soft">Generate</button></div>
+                <small class="ai-usage-hint">OpenAI-compatible · gpt-4o-mini</small>
+                <p style="color: #27272a; font-weight: 500;">あなたと同じように冒険者だったが、膝に矢を受けてしまった。</p>
+                <button class="button soft" style="margin-top: 8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Apply Suggestion</button>
+              </section>
+            </aside>
           </div>
+          <div class="statusbar"><span><i class="saved"></i>All changes saved</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -305,33 +397,64 @@ msgstr "开始游戏"</code></pre>
         <h2 data-i18n="feature.6.title">Obsidian-Style Tags</h2>
         <p data-i18n="feature.6.desc">Two-tier tagging: Source Tags shared across all languages per entry, and Word Tags bound to individual cells. Filter, search, and organize with #ui, #review, #todo.</p>
       </div>
-      <div class="demo-panel" data-demo="tags">
-        <div class="demo-tags">
-          <div class="tag-filter-bar" data-delay="0">
-            <span class="tag-filter-label" data-text-en="Filter:" data-text-zh="筛选："></span>
-            <span class="tag-chip active">#ui</span>
-            <span class="tag-chip">#review</span>
-            <span class="tag-chip">#todo</span>
-            <span class="tag-chip">#dialog</span>
+      <div class="app-screenshot" data-screenshot="tags">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save" data-text-zh="保存"></span></button>
+            </nav>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <button class="filter-toggle active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span data-text-en="Tags" data-text-zh="Tags"></span></button>
+            <button class="filter-toggle active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg><span data-text-en="Word Tags" data-text-zh="Word Tags"></span></button>
+            <span class="filter-result">3 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="source-col"><strong>Start Game</strong></td>
+                    <td class="translation-cell"><input value="开始游戏" readonly></td>
+                    <td class="translation-cell"><input value="Start Game" readonly></td>
+                    <td class="translation-cell"><input value="ゲーム開始" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#ui</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Options</strong></td>
+                    <td class="translation-cell"><input value="选项" readonly><span class="word-tag-markers"><i style="background-color: #22c55e;"></i></span></td>
+                    <td class="translation-cell"><input value="Options" readonly></td>
+                    <td class="translation-cell"><input value="オプション" readonly></td>
+                    <td class="tag-cell"><span class="tags"><span>#review</span></span></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Load Save Data</strong></td>
+                    <td class="translation-cell"><input value="读取存档" readonly></td>
+                    <td class="translation-cell"><input value="Load Save Data" readonly></td>
+                    <td class="translation-cell"><input value="" placeholder="Missing translation" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <header><div><span>Detail Editor</span><h2>简中</h2></div></header>
+              <label class="field-label">Source</label><div class="source-preview">Options</div>
+              <label class="field-label">Translation</label>
+              <textarea class="translation-area" readonly>选项</textarea>
+              <label class="field-label">Source Tags</label>
+              <input class="text-input" value="#review" readonly>
+              <label class="field-label">Word Tags</label>
+              <input class="text-input" value="#todo" readonly>
+              <section class="stats">
+                <div class="tag-summary"><span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/></svg>Tags</span><small>#ui <b>2</b></small><small>#review <b>1</b></small><small>#dialog <b>1</b></small></div>
+              </section>
+            </aside>
           </div>
-          <div class="tag-table">
-            <div class="tag-row" data-delay="1">
-              <span class="tag-row-source">Start Game</span>
-              <span class="tag-row-trans">开始游戏</span>
-              <span class="tag-row-tag source-tag">#ui</span>
-            </div>
-            <div class="tag-row" data-delay="2">
-              <span class="tag-row-source">Options</span>
-              <span class="tag-row-trans">选项</span>
-              <span class="tag-row-tag source-tag">#review</span>
-              <span class="tag-row-tag word-tag">#todo</span>
-            </div>
-            <div class="tag-row dim" data-delay="3">
-              <span class="tag-row-source">Enter: Location</span>
-              <span class="tag-row-trans">进入：地点</span>
-              <span class="tag-row-tag source-tag">#ui</span>
-            </div>
-          </div>
+          <div class="statusbar"><span><i class="saved"></i>All changes saved</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>
@@ -345,26 +468,64 @@ msgstr "开始游戏"</code></pre>
         <h2 data-i18n="feature.7.title">Batch & Excel-Like Edit</h2>
         <p data-i18n="feature.7.desc">Multi-select cells, bulk copy-paste, batch fill, find & replace across languages. Full undo/redo support. Edit directly in cells or in a spacious detail panel.</p>
       </div>
-      <div class="demo-panel" data-demo="batch">
-        <div class="demo-batch">
-          <div class="batch-grid" data-delay="0">
-            <div class="batch-cell header">Source</div>
-            <div class="batch-cell header">zh-CN</div>
-            <div class="batch-cell header">en</div>
-            <div class="batch-cell">Item</div>
-            <div class="batch-cell selected">道具</div>
-            <div class="batch-cell selected">Item</div>
-            <div class="batch-cell">Weapon</div>
-            <div class="batch-cell selected">武器</div>
-            <div class="batch-cell selected">Weapon</div>
-            <div class="batch-cell">Armor</div>
-            <div class="batch-cell">防具</div>
-            <div class="batch-cell">Armor</div>
+      <div class="app-screenshot" data-screenshot="batch">
+        <div class="app-shell" style="height: 420px; border-radius: 12px; overflow: hidden; box-shadow: 0 12px 48px rgba(0,0,0,0.12);">
+          <header class="topbar">
+            <div class="brand"><div class="brand-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6M11 8l6 6M3 21h18M4 18h16M5 8v10M19 8v10M11 8v10M15 8v10"/></svg></div><strong>Lingrid</strong><span>灵译</span></div>
+            <nav class="toolbar">
+              <button class="button primary"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span data-text-en="Save" data-text-zh="保存"></span></button>
+              <span class="separator"></span>
+              <button class="button"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span data-text-en="Batch Replace" data-text-zh="批量替换"></span></button>
+            </nav>
+          </header>
+          <section class="filterbar">
+            <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Search source, translation or #tag" readonly></label>
+            <span class="filter-result">5 / 5</span>
+          </section>
+          <div class="workspace" style="min-height: 0;">
+            <section class="matrix-wrap" style="overflow: auto;">
+              <table class="matrix" style="width: 100%; table-layout: auto;">
+                <thead><tr><th class="source-col">Source</th><th>简中</th><th>EN</th><th>JA</th><th>Tags</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="source-col"><strong>Item</strong></td>
+                    <td class="translation-cell multi-selected-cell"><input value="道具" readonly></td>
+                    <td class="translation-cell multi-selected-cell"><input value="Item" readonly></td>
+                    <td class="translation-cell"><input value="アイテム" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Weapon</strong></td>
+                    <td class="translation-cell multi-selected-cell"><input value="武器" readonly></td>
+                    <td class="translation-cell multi-selected-cell"><input value="Weapon" readonly></td>
+                    <td class="translation-cell"><input value="武器" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                  <tr>
+                    <td class="source-col"><strong>Armor</strong></td>
+                    <td class="translation-cell"><input value="防具" readonly></td>
+                    <td class="translation-cell"><input value="Armor" readonly></td>
+                    <td class="translation-cell"><input value="防具" readonly></td>
+                    <td class="tag-cell"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </section>
+            <aside class="detail-panel" style="width: 318px; flex-shrink: 0;">
+              <div class="empty-detail" style="padding: 40px 20px; text-align: center;">
+                <p style="color: #a1a1aa; font-size: 14px;">4 cells selected. Use Ctrl+C to copy, Ctrl+V to paste.</p>
+                <section class="ai-panel" style="margin-top: 24px;">
+                  <div class="panel-heading"><span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>AI Suggestion</span><button class="button soft">Generate</button></div>
+                  <p>Will translate all empty translation cells.</p>
+                </section>
+              </div>
+              <section class="stats">
+                <div class="panel-heading"><span>Completion</span></div>
+                <div class="stat"><div><span>简中</span><b>100%</b></div><div class="progress"><i style="width: 100%"></i></div><small>5 / 5 translated</small></div>
+              </section>
+            </aside>
           </div>
-          <div class="batch-action" data-delay="1">
-            <span class="batch-hint" data-text-en="4 cells selected" data-text-zh="已选择 4 个单元格"></span>
-            <span class="batch-btn" data-text-en="Fill Empty" data-text-zh="填充空白"></span>
-          </div>
+          <div class="statusbar"><span><i class="saved"></i>All changes saved</span><span>v0.1.1</span></div>
         </div>
       </div>
     </div>

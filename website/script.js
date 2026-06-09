@@ -1,4 +1,4 @@
-// Lingrid Website — Language Switcher, Mobile Menu & Demo Animations
+// Lingrid Website — Language Switcher, Mobile Menu & App Screenshot Localization
 (function() {
   'use strict';
 
@@ -138,23 +138,28 @@
       }
     });
 
-    // Update data-text-en/zh elements
+    // Update data-text-en/zh elements (app screenshot content)
     document.querySelectorAll('[data-text-en][data-text-zh]').forEach(el => {
       const text = lang === 'zh' ? el.getAttribute('data-text-zh') : el.getAttribute('data-text-en');
-      if (text !== null) {
-        // For table cells and other elements that may have child elements (like tags),
-        // only update text nodes, not innerHTML
-        if (el.querySelector('.tag, .tag-chip, .tag-row-tag')) {
-          // Element has child tags, update only direct text
-          const textNode = Array.from(el.childNodes).find(n => n.nodeType === 3);
-          if (textNode) {
-            textNode.textContent = text;
-          } else if (!el.querySelector('svg, .tag, .tag-chip, .tag-row-tag')) {
-            el.textContent = text;
+      if (text === null) return;
+      
+      // For elements with child elements (tags, icons), preserve children and update text
+      const hasChildren = el.querySelector('.tags, .tag, .word-tag-markers, svg, .button-dirty');
+      if (hasChildren) {
+        // Find and update text nodes only
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+        const textNodes = [];
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.textContent.trim() && node.parentElement === el) {
+            textNodes.push(node);
           }
-        } else {
-          el.textContent = text;
         }
+        if (textNodes.length > 0) {
+          textNodes[0].textContent = text;
+        }
+      } else {
+        el.textContent = text;
       }
     });
 
