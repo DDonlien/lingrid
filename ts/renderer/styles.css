@@ -166,6 +166,17 @@ code { display: block; overflow: hidden; color: #71717a; font-size: 11px; text-o
 .column-row { display: grid; grid-template-columns: 18px minmax(0,1fr) 70px; gap: 6px; align-items: center; }
 .column-row input { height: 31px; padding: 0 8px; border: 1px solid #e4e4e7; border-radius: 5px; }
 .column-row code { font-size: 10px; }
-.empty-detail { padding: 30px 0; color: #a1a1aa; font-size: 12px; }
+.recent-projects-menu .filter-toggle { gap: 6px; }
+.recent-projects-popover { min-width: 240px; max-width: 320px; }
+.recent-project-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 8px; border-radius: 6px; cursor: pointer; }
+.recent-project-item:hover { background: #f4f4f5; }
+.recent-project-info { display: grid; gap: 2px; min-width: 0; }
+.recent-project-name { overflow: hidden; color: #27272a; font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.recent-project-meta { display: flex; align-items: center; gap: 4px; color: #a1a1aa; font-size: 10px; }
+.recent-project-remove { opacity: 0; width: 22px; height: 22px; color: #a1a1aa; }
+.recent-project-item:hover .recent-project-remove { opacity: 1; }
+.recent-project-remove:hover { color: #ef4444; background: #fef2f2; }
+.recent-project-clear { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 0; border-radius: 6px; color: #a1a1aa; background: transparent; font-size: 11px; cursor: pointer; }
+.recent-project-clear:hover { color: #ef4444; background: #fef2f2; }
 .spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }

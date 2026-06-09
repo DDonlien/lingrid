@@ -4,11 +4,13 @@ import {
   Bot,
   Check,
   ClipboardList,
+  Clock,
   FilePlus2,
   FileText,
   Filter,
   FolderOpen,
   Hash,
+  History,
   Languages,
   RefreshCw,
   Save,
@@ -19,14 +21,15 @@ import {
   CircleCheck,
   CircleDashed,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
 import { rateLimitRetryDelayMs, renderAiPromptTemplate, runAdaptiveConcurrentBatch } from "../core/ai";
 import { writeBrowserFile } from "../core/browser-files";
-import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
-import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
+import { adjacentCell, addRecentProject, applyTranslationDrafts, canImportSourceTypes, cellParticipates, clearRecentProjects, createProject, EMPTY_TAG_FILTER, filteredEntries, loadRecentProjects, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, removeRecentProject, reorderColumn, saveRecentProjects, serializeProject, sortedEntries } from "../core/project";
+import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, RecentProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { DEEPL_ENDPOINTS, ProviderHttpError as DeepLProviderHttpError, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
 import { ProviderHttpError as OpenAiProviderHttpError, requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
 import { ANTHROPIC_COMPATIBLE_PRESETS, OPENAI_COMPATIBLE_PRESETS, providerPreset } from "./providers/presets";
@@ -44,7 +47,8 @@ type ProjectConfig = {
   columnWidths?: Record<string, number>;
   tags?: Record<string, string[]>;
   wordTags?: Record<string, Record<string, string[]>>;
-  view?: Partial<LingridProject["view"]> & { tag?: string };
+  neverEdited?: Record<string, Record<string, boolean>>;
+  view?: Partial<LingridProject["view"]> & { tag?: string; changedOnly?: boolean };
 };
 type BrowserSourceFile = { name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle };
 type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "download"; fileCount: number } | { kind: "error"; message: string };
@@ -73,7 +77,7 @@ const UI_TEXT = {
     open: "打开", importCsv: "导入 CSV", openProject: "打开项目", authorizeFolder: "授权项目文件夹", csvMapping: "CSV 映射",
     save: "保存", saveAs: "另存为", saveProject: "保存项目", saveProjectAs: "项目另存为", batchReplace: "批量替换", aiSettings: "AI 设置",
     search: "搜索 source、译文或 #tag", allEntries: "全部条目", complete: "已完成", incomplete: "未完成", languages: "语言", allLanguages: "全部语言",
-    changedOnly: "仅显示已修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
+    changedOnly: "仅显示已修改", editStatus: "修改状态", neverEdited: "从未修改", changed: "已修改", unchanged: "未修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     aiEmptyBatch: "将翻译所有空置的译文单元格。已有译文不会被自动覆盖。",
@@ -85,6 +89,7 @@ const UI_TEXT = {
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
     diagnostics: "诊断日志", copyDiagnostics: "复制日志", clearDiagnostics: "清空日志", diagnosticsCopied: "诊断日志已复制",
     forceMissingCells: "强制补齐", unavailableCell: "源文件中不存在此条目",
+    recentProjects: "最近项目", clearRecentProjects: "清除历史", noRecentProjects: "暂无最近项目", openRecentProject: "打开最近项目",
   },
   ja: {
     open: "開く", importCsv: "CSV を読み込む", openProject: "プロジェクトを開く", authorizeFolder: "フォルダーを許可", csvMapping: "CSV マッピング",
@@ -102,6 +107,7 @@ const UI_TEXT = {
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
     diagnostics: "診断ログ", copyDiagnostics: "ログをコピー", clearDiagnostics: "ログを消去", diagnosticsCopied: "診断ログをコピーしました",
     forceMissingCells: "不足項目を強制追加", unavailableCell: "ソースファイルにこの項目はありません",
+    recentProjects: "最近のプロジェクト", clearRecentProjects: "履歴を消去", noRecentProjects: "最近のプロジェクトはありません", openRecentProject: "最近のプロジェクトを開く",
   },
   en: {
     open: "Open", importCsv: "Import CSV", openProject: "Open Project", authorizeFolder: "Authorize Project Folder", csvMapping: "CSV Mapping",
@@ -119,6 +125,7 @@ const UI_TEXT = {
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
     diagnostics: "Diagnostic Log", copyDiagnostics: "Copy Log", clearDiagnostics: "Clear Log", diagnosticsCopied: "Diagnostic log copied",
     forceMissingCells: "Force Missing Entries", unavailableCell: "This entry does not exist in the source file",
+    recentProjects: "Recent Projects", clearRecentProjects: "Clear History", noRecentProjects: "No recent projects", openRecentProject: "Open recent project",
   },
 } as const;
 export const AI_DEFAULT: AiSettings = {
@@ -434,8 +441,8 @@ export function App() {
   const [draggedLanguage, setDraggedLanguage] = useState<string | null>(null);
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
   const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(initialDemoProject));
-  const [pendingBrowserProject, setPendingBrowserProject] = useState<{ config: ProjectConfig; projectFileHandle: FileSystemFileHandle } | null>(null);
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>(() => loadRecentProjects());
   const fileInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
   const pendingProjectConfig = useRef<ProjectConfig | null>(null);
@@ -714,6 +721,7 @@ export function App() {
           }
           if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
           const previous = nextEntry.translations[cell.column];
+          const changed = previous?.changed || value !== (previous?.value ?? "");
           nextEntry = {
             ...nextEntry,
             translations: {
@@ -721,7 +729,8 @@ export function App() {
               [cell.column]: {
                 ...previous,
                 value,
-                changed: previous?.changed || value !== (previous?.value ?? ""),
+                changed,
+                neverEdited: changed ? false : previous?.neverEdited,
               },
             },
           };
@@ -755,6 +764,7 @@ export function App() {
           }
           if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
           const previous = nextEntry.translations[cell.column];
+          const changed = previous?.changed || value !== (previous?.value ?? "");
           nextEntry = {
             ...nextEntry,
             translations: {
@@ -762,7 +772,8 @@ export function App() {
               [cell.column]: {
                 ...previous,
                 value,
-                changed: previous?.changed || value !== (previous?.value ?? ""),
+                changed,
+                neverEdited: changed ? false : previous?.neverEdited,
               },
             },
           };
@@ -840,6 +851,9 @@ export function App() {
         setNotice("PO/POT and CSV files cannot be mixed in the same project.");
         return state;
       }
+      const previousCells = new Map(state.entries.flatMap((entry) =>
+        Object.entries(entry.translations).map(([language, cell]) => [`${entry.key}\u0001${language}`, cell.neverEdited]),
+      ));
       for (const file of files) {
         const document = createDocument(file.name, file.path, file.content, file.modifiedAt, file.fileHandle);
         const entries = document.type === "csv" ? parseCsv(document) : parsePo(document);
@@ -858,6 +872,16 @@ export function App() {
           next.columnLabels[language] ??= language;
         }
       }
+      next.entries = next.entries.map((entry) => ({
+        ...entry,
+        translations: Object.fromEntries(
+          Object.entries(entry.translations).map(([language, cell]) => {
+            const key = `${entry.key}\u0001${language}`;
+            const previousNeverEdited = previousCells.get(key);
+            return [language, { ...cell, neverEdited: previousNeverEdited !== undefined ? previousNeverEdited : true }];
+          }),
+        ),
+      }));
       setNotice(`Imported ${next.documents.length} source file${next.documents.length === 1 ? "" : "s"}`);
       return next;
     });
@@ -897,6 +921,46 @@ export function App() {
       restoreProject(config, files, projectFile.path, undefined, missingPaths);
       return;
     }
+
+    // Browser: prefer directory picker for FILE-B workflow
+    if (window.showDirectoryPicker) {
+      try {
+        const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+        appendDiagnostic("project.open.directory", { name: directoryHandle.name });
+
+        // Look for .lingrid.json in the selected folder
+        let projectFileHandle: FileSystemFileHandle | undefined;
+        try {
+          projectFileHandle = await directoryHandle.getFileHandle(".lingrid.json");
+        } catch {
+          // .lingrid.json does not exist
+        }
+
+        if (projectFileHandle) {
+          const projectFile = await projectFileHandle.getFile();
+          const config = JSON.parse(await projectFile.text()) as ProjectConfig;
+          appendDiagnostic("project.open.json", { name: projectFile.name, bytes: projectFile.size, modifiedAt: projectFile.lastModified, configuredFiles: config.files?.length ?? 0 });
+          const { files, missingPaths } = await readBrowserProjectDirectory(directoryHandle, config);
+          restoreProject(config, files, undefined, projectFileHandle, missingPaths, directoryHandle);
+        } else {
+          // No project file found: import source files as a new project
+          setNotice("No .lingrid.json found. Importing source files from the selected folder.");
+          const { files } = await readBrowserProjectDirectory(directoryHandle, { files: [] });
+          if (files.length) {
+            importDocuments(files);
+            patchProject({ directoryHandle });
+          } else {
+            setNotice("No source files found in the selected folder.");
+          }
+        }
+      } catch (error) {
+        appendDiagnostic("project.open.error", errorDetails(error));
+        if ((error as DOMException).name !== "AbortError") setNotice("Could not open the project folder.");
+      }
+      return;
+    }
+
+    // Fallback: legacy file picker for browsers without directory picker
     if (!window.showOpenFilePicker) {
       projectInput.current?.click();
       return;
@@ -909,18 +973,12 @@ export function App() {
       const projectFile = await projectFileHandle.getFile();
       const config = JSON.parse(await projectFile.text()) as ProjectConfig;
       appendDiagnostic("project.open.json", { name: projectFile.name, bytes: projectFile.size, modifiedAt: projectFile.lastModified, configuredFiles: config.files?.length ?? 0 });
-      if (window.showDirectoryPicker) {
-        setPendingBrowserProject({ config, projectFileHandle });
-        appendDiagnostic("project.open.awaitingDirectoryAuthorization");
-        setNotice("Project JSON loaded. Authorize its project folder to reopen source files.");
-      } else {
-        const sourceHandles = await window.showOpenFilePicker({
-          multiple: true,
-          types: [{ description: "Lingrid source files", accept: { "text/plain": [".po", ".pot", ".csv"] } }],
-        });
-        const files = await readBrowserSourceFiles(sourceHandles);
-        restoreProject(config, files, undefined, projectFileHandle);
-      }
+      const sourceHandles = await window.showOpenFilePicker({
+        multiple: true,
+        types: [{ description: "Lingrid source files", accept: { "text/plain": [".po", ".pot", ".csv"] } }],
+      });
+      const files = await readBrowserSourceFiles(sourceHandles);
+      restoreProject(config, files, undefined, projectFileHandle);
     } catch (error) {
       appendDiagnostic("project.open.error", errorDetails(error));
       if ((error as DOMException).name !== "AbortError") setNotice("Could not open the project JSON.");
@@ -1064,7 +1122,7 @@ export function App() {
       ...entry,
       translations: Object.fromEntries(Object.entries(entry.translations).map(([language, cell]) => [
         language,
-        { ...cell, tags: config.wordTags?.[entry.key]?.[language] ?? [] },
+        { ...cell, tags: config.wordTags?.[entry.key]?.[language] ?? [], neverEdited: config.neverEdited?.[entry.key]?.[language] ?? false },
       ])),
     }));
     next.columnOrder = config.columnOrder ?? [...new Set(next.entries.flatMap((entry) => Object.keys(entry.translations)))];
@@ -1084,6 +1142,9 @@ export function App() {
       ? `Opened ${files.length} source file${files.length === 1 ? "" : "s"}; skipped ${missingPaths.length} missing file${missingPaths.length === 1 ? "" : "s"}.`
       : `Opened project with ${files.length} source files`);
     appendDiagnostic("project.restore.success", { documents: next.documents.length, entries: next.entries.length, languages: next.columnOrder });
+    const updatedRecent = addRecentProject(recentProjects, next, projectPath);
+    setRecentProjects(updatedRecent);
+    saveRecentProjects(updatedRecent);
   }
 
   async function readBrowserSourceFiles(handles: FileSystemFileHandle[]): Promise<BrowserSourceFile[]> {
@@ -1248,6 +1309,9 @@ export function App() {
     } else download("lingrid-project.json", content);
     setSavedProjectSnapshot(content);
     setNotice("Project state saved");
+    const updatedRecent = addRecentProject(recentProjects, project, project.projectPath ?? undefined);
+    setRecentProjects(updatedRecent);
+    saveRecentProjects(updatedRecent);
   }
 
   async function saveCurrentPoAs() {
@@ -1532,7 +1596,8 @@ export function App() {
             Object.entries(entry.translations).map(([language, cell]) => {
               const inScope = batch.scope === "all" || language === selection?.language;
               const value = inScope ? replace(cell.value) : cell.value;
-              return [language, { ...cell, value, changed: cell.changed || value !== cell.value }];
+              const changed = cell.changed || value !== cell.value;
+              return [language, { ...cell, value, changed, neverEdited: changed ? false : cell.neverEdited }];
             }),
           ),
         };
@@ -1563,7 +1628,56 @@ export function App() {
   const aiSettingsDirty = aiDraft ? JSON.stringify(aiDraft) !== JSON.stringify(ai) : false;
   const currentAiUsageLabel = aiUsageLabel(ai);
 
-  function matrixHeaderLabel(language: string): string {
+  async function handleOpenRecent(recent: RecentProject) {
+    if (window.lingrid) {
+      try {
+        const { files: [projectFile], missingPaths: projectMissing } = await window.lingrid.readFiles([recent.path]);
+        if (!projectFile || projectMissing.length) {
+          setNotice(`Could not open recent project: ${recent.name}`);
+          return;
+        }
+        const config = JSON.parse(projectFile.content) as ProjectConfig;
+        const { files, missingPaths } = await window.lingrid.readFiles((config.files ?? []).map((file) => file.path));
+        restoreProject(config, files, recent.path, undefined, missingPaths);
+      } catch (error) {
+        setNotice(`Could not open recent project: ${recent.name}`);
+      }
+      return;
+    }
+    // Browser: cannot persist file handles in localStorage; guide user to re-open manually.
+    setNotice("Please use Open Project to reopen this project in the browser.");
+    openProject();
+  }
+
+  function handleRemoveRecent(event: React.MouseEvent, path: string) {
+    event.stopPropagation();
+    const updated = removeRecentProject(recentProjects, path);
+    setRecentProjects(updated);
+    saveRecentProjects(updated);
+  }
+
+  function handleClearRecent() {
+    clearRecentProjects();
+    setRecentProjects([]);
+  }
+
+  function formatRecentTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        return diffMins <= 1 ? "Just now" : `${diffMins}m ago`;
+      }
+      return `${diffHours}h ago`;
+    }
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
     if (!isDemoProject(project)) return project.columnLabels[language] ?? language;
     return ({ "zh-CN": "简中", en: "EN", ja: "JA", ko: "KO", ru: "RU" } as Record<string, string>)[language] ?? project.columnLabels[language] ?? language;
   }
@@ -1576,6 +1690,39 @@ export function App() {
           <Button onClick={openFiles}><FolderOpen size={15} />{t.open}</Button>
           <Button onClick={openFiles}><FilePlus2 size={15} />{t.importCsv}</Button>
           <Button onClick={openProject}><FileText size={15} />{t.openProject}</Button>
+          {recentProjects.length > 0 ? (
+            <details className="filter-menu recent-projects-menu">
+              <summary className="filter-toggle"><History size={14} />{t.recentProjects}</summary>
+              <div className="filter-popover recent-projects-popover">
+                {recentProjects.map((recent) => (
+                  <div
+                    key={recent.path}
+                    className="recent-project-item"
+                    onClick={() => { handleOpenRecent(recent); document.querySelector<HTMLDetailsElement>(".recent-projects-menu")?.removeAttribute("open"); }}
+                  >
+                    <div className="recent-project-info">
+                      <span className="recent-project-name">{recent.name}</span>
+                      <span className="recent-project-meta">
+                        <Clock size={11} />{formatRecentTime(recent.lastAccessed)}
+                        {recent.languages.length > 0 ? <> · {recent.languages.length} {t.languages.toLowerCase()}</> : null}
+                      </span>
+                    </div>
+                    <button
+                      className="icon-button recent-project-remove"
+                      title="Remove from history"
+                      onClick={(event) => { handleRemoveRecent(event, recent.path); event.stopPropagation(); }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+                <div className="filter-divider" />
+                <button className="recent-project-clear" onClick={() => { handleClearRecent(); document.querySelector<HTMLDetailsElement>(".recent-projects-menu")?.removeAttribute("open"); }}>
+                  <Trash2 size={12} />{t.clearRecentProjects}
+                </button>
+              </div>
+            </details>
+          ) : null}
           {pendingBrowserProject ? <Button variant="soft" onClick={authorizeProjectDirectory}><FolderOpen size={15} />{t.authorizeFolder}</Button> : null}
           {project.documents.some((document) => document.type === "csv") ? <Button onClick={openCsvMapping}><Languages size={15} />{t.csvMapping}</Button> : null}
           <span className="separator" />

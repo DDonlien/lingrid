@@ -1,23 +1,31 @@
-import type { DocumentType, LingridProject, ProjectView, TranslationEntry, TranslationSortMode } from "./types";
+import type { DocumentType, LingridProject, ProjectView, RecentProject, TranslationEntry, TranslationSortMode } from "./types";
 
 export const DEFAULT_VIEW: ProjectView = {
   search: "",
   completion: "all",
   completionLanguages: [],
-  changedOnly: false,
+  editStatus: ["never-edited", "changed", "unchanged"],
   tags: [],
   wordTags: [],
   wordTagLanguages: [],
   forceMissingCells: false,
 };
 export const EMPTY_TAG_FILTER = "\u0000empty";
+export const EDIT_STATUS_NEVER_EDITED = "never-edited";
+export const EDIT_STATUS_CHANGED = "changed";
+export const EDIT_STATUS_UNCHANGED = "unchanged";
+export const EDIT_STATUS_OPTIONS = [EDIT_STATUS_NEVER_EDITED, EDIT_STATUS_CHANGED, EDIT_STATUS_UNCHANGED];
+export const RECENT_PROJECTS_KEY = "lingrid-recent-projects";
+export const MAX_RECENT_PROJECTS = 10;
 
-export function normalizeProjectView(view?: Partial<ProjectView> & { tag?: string }): ProjectView {
-  const { tag, ...current } = view ?? {};
+export function normalizeProjectView(view?: Partial<ProjectView> & { tag?: string; changedOnly?: boolean }): ProjectView {
+  const { tag, changedOnly, ...current } = view ?? {};
+  const editStatus = view?.editStatus ?? (changedOnly ? [EDIT_STATUS_CHANGED] : EDIT_STATUS_OPTIONS);
   return {
     ...DEFAULT_VIEW,
     ...current,
     completionLanguages: view?.completionLanguages ?? [],
+    editStatus,
     tags: view?.tags ?? (tag ? [tag] : []),
     wordTags: view?.wordTags ?? [],
     wordTagLanguages: view?.wordTagLanguages ?? [],
@@ -136,6 +144,7 @@ export function cellParticipates(entry: TranslationEntry, language: string, forc
 
 export function filteredEntries(project: LingridProject): TranslationEntry[] {
   const query = project.view.search.trim().toLowerCase();
+  const editStatus = project.view.editStatus?.length ? project.view.editStatus : EDIT_STATUS_OPTIONS;
   return project.entries.filter((entry) => {
     const values = Object.values(entry.translations).map((cell) => cell.value);
     const wordTagLanguages = project.view.wordTagLanguages.length ? project.view.wordTagLanguages : project.columnOrder;
@@ -145,7 +154,6 @@ export function filteredEntries(project: LingridProject): TranslationEntry[] {
     const participatingLanguages = completionLanguages.filter((language) => cellParticipates(entry, language, project.view.forceMissingCells));
     const complete = participatingLanguages.length > 0 &&
       participatingLanguages.every((language) => entry.translations[language]?.value.trim());
-    const changed = Object.values(entry.translations).some((cell) => cell.changed);
     const matchesQuery =
       !query ||
       entry.source.toLowerCase().includes(query) ||
@@ -161,6 +169,12 @@ export function filteredEntries(project: LingridProject): TranslationEntry[] {
         (project.view.wordTags.includes(EMPTY_TAG_FILTER) && tags.length === 0)
       );
     });
+    const matchesEditStatus = editStatus.length === EDIT_STATUS_OPTIONS.length || Object.values(entry.translations).some((cell) => {
+      if (editStatus.includes(EDIT_STATUS_CHANGED) && cell.changed) return true;
+      if (editStatus.includes(EDIT_STATUS_NEVER_EDITED) && cell.neverEdited) return true;
+      if (editStatus.includes(EDIT_STATUS_UNCHANGED) && !cell.changed && !cell.neverEdited && cell.value !== undefined) return true;
+      return false;
+    });
 
     return (
       matchesQuery &&
@@ -168,7 +182,7 @@ export function filteredEntries(project: LingridProject): TranslationEntry[] {
         project.view.tags.some((tag) => entry.tags.includes(tag)) ||
         (project.view.tags.includes(EMPTY_TAG_FILTER) && entry.tags.length === 0)) &&
       matchesWordTags &&
-      (!project.view.changedOnly || changed) &&
+      matchesEditStatus &&
       (project.view.completion === "all" ||
         (participatingLanguages.length === 0 ? false :
         (project.view.completion === "complete" && complete) ||
@@ -215,6 +229,12 @@ export function serializeProject(project: LingridProject): string {
       .map(([language, cell]) => [language, cell.tags]));
     return Object.keys(cells).length ? [[entry.key, cells]] : [];
   }));
+  const neverEdited = Object.fromEntries(project.entries.flatMap((entry) => {
+    const cells = Object.fromEntries(Object.entries(entry.translations)
+      .filter(([, cell]) => cell.neverEdited)
+      .map(([language]) => [language, true]));
+    return Object.keys(cells).length ? [[entry.key, cells]] : [];
+  }));
   return JSON.stringify(
     {
       version: project.version,
@@ -232,6 +252,7 @@ export function serializeProject(project: LingridProject): string {
       columnWidths: project.columnWidths,
       tags,
       wordTags,
+      neverEdited,
     },
     null,
     2,
@@ -253,4 +274,55 @@ export function projectStats(project: LingridProject) {
     changed += (entry.sourceChanged ? 1 : 0) + Object.values(entry.translations).filter((cell) => cell.changed).length;
   }
   return { total: project.entries.length, languages, tags, changed };
+}
+
+export function loadRecentProjects(storage: StorageLike = window.localStorage): RecentProject[] {
+  try {
+    const raw = storage.getItem(RECENT_PROJECTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as RecentProject[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => item && typeof item.path === "string" && typeof item.name === "string");
+  } catch {
+    return [];
+  }
+}
+
+export function saveRecentProjects(projects: RecentProject[], storage: StorageLike = window.localStorage): void {
+  try {
+    storage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(projects));
+  } catch {
+    // localStorage may be full or disabled. Silently skip.
+  }
+}
+
+export function addRecentProject(
+  projects: RecentProject[],
+  project: LingridProject,
+  path?: string,
+): RecentProject[] {
+  const projectPath = path ?? project.projectPath ?? "";
+  if (!projectPath) return projects;
+  const name = projectPath.split(/[\\/]/).filter(Boolean).pop() ?? projectPath;
+  const next: RecentProject = {
+    path: projectPath,
+    name,
+    lastAccessed: Date.now(),
+    sourceCount: project.documents.length,
+    languages: [...project.columnOrder],
+  };
+  const filtered = projects.filter((item) => item.path !== projectPath);
+  return [next, ...filtered].slice(0, MAX_RECENT_PROJECTS);
+}
+
+export function removeRecentProject(projects: RecentProject[], path: string): RecentProject[] {
+  return projects.filter((item) => item.path !== path);
+}
+
+export function clearRecentProjects(storage: StorageLike = window.localStorage): void {
+  try {
+    storage.removeItem(RECENT_PROJECTS_KEY);
+  } catch {
+    // Silently skip.
+  }
 }

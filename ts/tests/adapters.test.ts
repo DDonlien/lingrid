@@ -328,7 +328,7 @@ describe("Project state", () => {
     const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
     entries[0].tags = ["#ui"];
     entries[1].tags = ["#review"];
-    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], changedOnly: false, tags: ["#ui", "#review"], wordTags: [], wordTagLanguages: [] } };
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], editStatus: ["never-edited", "changed", "unchanged"], tags: ["#ui", "#review"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
     project.view.completionLanguages = ["zh-CN"];
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
@@ -341,7 +341,7 @@ describe("Project state", () => {
       search: "",
       completion: "all",
       completionLanguages: [],
-      changedOnly: false,
+      editStatus: ["never-edited", "changed", "unchanged"],
       tags: ["#ui"],
       wordTags: [],
       wordTagLanguages: [],
