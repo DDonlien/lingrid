@@ -8,15 +8,41 @@ export function renderAiPromptTemplate({
   language,
   source,
   columnLabels,
+  otherLanguages,
 }: {
   template: string;
   language: string;
   source: string;
   columnLabels: Record<string, string>;
+  otherLanguages?: { language: string; content: string }[];
 }): string {
-  return template
+  let result = template
     .replaceAll("{{language}}", aiLanguageLabel(language, columnLabels))
     .replaceAll("{{source}}", source);
+
+  const others = otherLanguages ?? [];
+
+  // Replace indexed OtherLan/OhterContent variables (1-based index)
+  result = result.replace(/\{\{OtherLan_(\d+)\}\}/g, (_match, num) => {
+    const idx = Number(num) - 1;
+    return idx >= 0 && idx < others.length ? aiLanguageLabel(others[idx].language, columnLabels) : "";
+  });
+  result = result.replace(/\{\{OhterContent_(\d+)\}\}/g, (_match, num) => {
+    const idx = Number(num) - 1;
+    return idx >= 0 && idx < others.length ? others[idx].content : "";
+  });
+
+  // Replace aggregate OtherLan/OhterContent
+  const aggregate = others.length
+    ? others.map((item) => `${aiLanguageLabel(item.language, columnLabels)}: ${item.content}`).join(",")
+    : "";
+
+  // Handle paired pattern first, then individual variables
+  result = result.replaceAll("{{OtherLan}}: {{OhterContent}}", aggregate);
+  result = result.replaceAll("{{OtherLan}}", aggregate);
+  result = result.replaceAll("{{OhterContent}}", aggregate);
+
+  return result;
 }
 
 export function rateLimitRetryDelayMs(status: unknown, bodyPreview: unknown, fallbackMs = 2000): number | undefined {

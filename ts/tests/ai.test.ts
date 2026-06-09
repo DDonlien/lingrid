@@ -27,6 +27,95 @@ describe("AI prompt template rendering", () => {
   });
 });
 
+  it("renders indexed OtherLan and OhterContent variables", () => {
+    const result = renderAiPromptTemplate({
+      template: "Ref: {{OtherLan_1}} = {{OhterContent_1}}, {{OtherLan_2}} = {{OhterContent_2}}",
+      language: "en",
+      source: "Maze",
+      columnLabels: { "zh-Hans": "简体中文", ko: "한국어" },
+      otherLanguages: [
+        { language: "zh-Hans", content: "迷宫" },
+        { language: "ko", content: "미로" },
+      ],
+    });
+    expect(result).toBe("Ref: 简体中文 = 迷宫, 한국어 = 미로");
+  });
+
+  it("renders empty string for out-of-range indexed variables", () => {
+    const result = renderAiPromptTemplate({
+      template: "{{OtherLan_1}} {{OhterContent_1}} {{OtherLan_3}} {{OhterContent_3}}",
+      language: "en",
+      source: "X",
+      columnLabels: {},
+      otherLanguages: [
+        { language: "ja", content: "Y" },
+      ],
+    });
+    expect(result).toBe("ja Y  ");
+  });
+
+  it("renders aggregate OtherLan:OhterContent for paired pattern", () => {
+    const result = renderAiPromptTemplate({
+      template: "Others: {{OtherLan}}: {{OhterContent}}",
+      language: "en",
+      source: "Maze",
+      columnLabels: { "zh-Hans": "ZH-HANS", ko: "KO" },
+      otherLanguages: [
+        { language: "zh-Hans", content: "迷宫" },
+        { language: "ko", content: "미로" },
+      ],
+    });
+    expect(result).toBe("Others: ZH-HANS: 迷宫,KO: 미로");
+  });
+
+  it("renders aggregate for standalone OtherLan and OhterContent", () => {
+    const result = renderAiPromptTemplate({
+      template: "A: {{OtherLan}} B: {{OhterContent}}",
+      language: "en",
+      source: "Maze",
+      columnLabels: { ja: "JA" },
+      otherLanguages: [
+        { language: "ja", content: "迷路" },
+      ],
+    });
+    expect(result).toBe("A: JA: 迷路 B: JA: 迷路");
+  });
+
+  it("renders empty aggregate when otherLanguages is empty", () => {
+    const result = renderAiPromptTemplate({
+      template: "Others: [{{OtherLan}}: {{OhterContent}}]",
+      language: "en",
+      source: "Maze",
+      columnLabels: {},
+      otherLanguages: [],
+    });
+    expect(result).toBe("Others: []");
+  });
+
+  it("renders empty aggregate when otherLanguages is omitted", () => {
+    const result = renderAiPromptTemplate({
+      template: "Others: [{{OtherLan}}]",
+      language: "en",
+      source: "Maze",
+      columnLabels: {},
+    });
+    expect(result).toBe("Others: []");
+  });
+
+  it("uses column labels for OtherLan aggregate and indexed vars", () => {
+    const result = renderAiPromptTemplate({
+      template: "{{OtherLan_1}}: {{OhterContent_1}} | {{OtherLan}}",
+      language: "en",
+      source: "Start",
+      columnLabels: { ja: "日本語", fr: "Français" },
+      otherLanguages: [
+        { language: "ja", content: "開始" },
+        { language: "fr", content: "Début" },
+      ],
+    });
+    expect(result).toBe("日本語: 開始 | 日本語: 開始,Français: Début");
+  });
+
 describe("adaptive AI batch concurrency", () => {
   it("parses provider retry hints from 429 bodies", () => {
     expect(rateLimitRetryDelayMs(429, "Please retry in 21.358663766s.")).toBe(21359);

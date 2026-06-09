@@ -62,7 +62,7 @@ const AI_SETTINGS_KEY = "lingrid-ai-settings";
 const DEFAULT_OPENAI_PRESET = "openai";
 const DEFAULT_ANTHROPIC_PRESET = "claude-native";
 const LEGACY_DEFAULT_AI_PROMPT = "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}";
-const DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
+const DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nPrioritize referring to the source text, and also refer to the existing translations in other languages for the same entry ({{OtherLan}}: {{OhterContent}}) before giving the {{language}} translation.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
 const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
@@ -1392,11 +1392,17 @@ export function App() {
   }
 
   function aiPrompt(entry: TranslationEntry, language: string): string {
+    const others = project.columnOrder
+      .filter((lang) => lang !== language)
+      .map((lang) => ({ language: lang, content: entry.translations[lang]?.value ?? "" }))
+      .filter((item) => item.content.trim() !== "");
+
     return renderAiPromptTemplate({
       template: ai.prompt,
       language,
       source: entry.source,
       columnLabels: project.columnLabels,
+      otherLanguages: others,
     });
   }
 
