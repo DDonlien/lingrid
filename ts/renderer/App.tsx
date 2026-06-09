@@ -76,6 +76,7 @@ const UI_TEXT = {
     changedOnly: "仅显示已修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
     aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
+    aiEmptyBatch: "将翻译所有空置的译文单元格。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
     aiSuggestionSettings: "AI 建议设置", provider: "提供商", providerOpenAi: "OpenAI 兼容", providerOtherCompatible: "其他兼容", providerDeepl: "DeepL", providerHelp: "选择用于当前单元格建议的翻译服务。已有译文不会被自动覆盖。", openAiHelp: "适合 OpenAI 兼容的 Chat Completions API。", otherCompatibleHelp: "预留 Anthropic-compatible 等非 OpenAI 路径。", deeplHelp: "适合 DeepL 官方翻译接口。", providerPreset: "服务预设", disabledProvider: "待实现", deeplRegion: "DeepL 服务", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "选择官方 DeepL 或自托管 DeepLX；接口地址可手动调整。", credentials: "连接信息", apiEndpoint: "API 地址", model: "模型", apiKey: "API 密钥", promptTemplate: "提示词模板", promptHelp: "可使用 {{language}} 和 {{source}} 占位符。", done: "完成",
@@ -92,6 +93,7 @@ const UI_TEXT = {
     changedOnly: "変更のみ", allTags: "すべて", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "すべて", missingTranslation: "翻訳なし",
     detailEditor: "詳細エディター", noSelection: "未選択", keyContext: "Key / context", translation: "翻訳", enterTranslation: "翻訳を入力…",
     aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
+    aiEmptyBatch: "空の翻訳セルをすべて翻訳します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
     aiSuggestionSettings: "AI 提案設定", provider: "プロバイダー", providerOpenAi: "OpenAI 互換", providerOtherCompatible: "その他互換", providerDeepl: "DeepL", providerHelp: "現在のセルへの提案に使う翻訳サービスを選びます。既存の翻訳は自動上書きされません。", openAiHelp: "OpenAI 互換の Chat Completions API 向け。", otherCompatibleHelp: "Anthropic-compatible など非 OpenAI 経路の予約枠です。", deeplHelp: "DeepL 公式翻訳 API 向け。", providerPreset: "サービスプリセット", disabledProvider: "未実装", deeplRegion: "DeepL サービス", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "公式 DeepL またはセルフホスト DeepLX を選びます。endpoint は手動調整できます。", credentials: "接続情報", apiEndpoint: "API エンドポイント", model: "モデル", apiKey: "API キー", promptTemplate: "プロンプト", promptHelp: "{{language}} と {{source}} のプレースホルダーが使えます。", done: "完了",
@@ -108,6 +110,7 @@ const UI_TEXT = {
     changedOnly: "Changed only", allTags: "All", emptyTag: "Empty", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "All", missingTranslation: "Missing translation",
     detailEditor: "Detail editor", noSelection: "No selection", keyContext: "Key / context", translation: "Translation", enterTranslation: "Enter translation…",
     aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
+    aiEmptyBatch: "Will translate all empty translation cells. Existing translations are never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
     aiSuggestionSettings: "AI suggestion settings", provider: "Provider", providerOpenAi: "OpenAI-compatible", providerOtherCompatible: "Other-compatible", providerDeepl: "DeepL", providerHelp: "Choose the translation service for suggestions on the current cell. Existing translations are never overwritten automatically.", openAiHelp: "For OpenAI-compatible Chat Completions APIs.", otherCompatibleHelp: "Reserved for non-OpenAI protocols such as Anthropic-compatible.", deeplHelp: "For the official DeepL translation API.", providerPreset: "Service preset", disabledProvider: "Not implemented", deeplRegion: "DeepL service", deeplFree: "DeepL", deeplPro: "DeepLX", deeplRegionHelp: "Choose official DeepL or self-hosted DeepLX; the endpoint can be edited.", credentials: "Connection", apiEndpoint: "API endpoint", model: "Model", apiKey: "API key", promptTemplate: "Prompt template", promptHelp: "You can use {{language}} and {{source}} placeholders.", done: "Done",
@@ -583,7 +586,8 @@ export function App() {
 
   function clearMatrixSelectionFromNonCell(event: React.MouseEvent) {
     const target = event.target as HTMLElement;
-    if (target.closest(".translation-cell, .tag-cell, .detail-panel, .modal")) return;
+    if (target.closest(".translation-cell, .tag-cell, .modal")) return;
+    if (target.closest(".detail-panel input, .detail-panel textarea, .detail-panel button")) return;
     clearMatrixSelection();
   }
 
@@ -1677,7 +1681,7 @@ export function App() {
           </table>
         </section>
 
-        <aside className="detail-panel">
+        <aside className="detail-panel" onMouseDown={clearMatrixSelectionFromNonCell}>
           <header><div><span>{t.detailEditor}</span><h2>{selection ? project.columnLabels[selection.language] ?? selection.language : t.noSelection}</h2></div><Settings2 size={16} /></header>
           {current && selection ? <>
             <label className="field-label">{t.source}</label><div className="source-preview">{current.source}</div>
@@ -1693,7 +1697,13 @@ export function App() {
               <p>{suggestion || t.aiEmpty}</p>
               <Button variant="soft" disabled={!suggestion} onClick={() => { updateCell(current.key, selection.language, suggestion); setSuggestion(""); }}><Check size={14} />{t.applySuggestion}</Button>
             </section>
-          </> : <div className="empty-detail">{t.selectCell}</div>}
+          </> : <div className="empty-detail">
+              <p>{t.selectCell}</p>
+              <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={generateSuggestion} disabled={aiBusy}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{t.generate}</Button></div>
+                <small className="ai-usage-hint">{currentAiUsageLabel}</small>
+                <p>{t.aiEmptyBatch}</p>
+              </section>
+            </div>}
           <section className="stats">
             <div className="panel-heading"><span>{t.completion}</span><button className="link" onClick={() => setModal("files")}>{t.renameColumns}</button></div>
             {project.columnOrder.map((language) => {
