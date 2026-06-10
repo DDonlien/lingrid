@@ -62,7 +62,8 @@ const AI_SETTINGS_KEY = "lingrid-ai-settings";
 const DEFAULT_OPENAI_PRESET = "openai";
 const DEFAULT_ANTHROPIC_PRESET = "claude-native";
 const LEGACY_DEFAULT_AI_PROMPT = "Translate the following source text into {{language}}. Return only the translation:\n\n{{source}}";
-const DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nPrioritize referring to the source text, and also refer to the existing translations in other languages for the same entry ({{OtherLan}}: {{OhterContent}}) before giving the {{language}} translation.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
+const PREVIOUS_DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nFor alphabetic languages, match the capitalization of {{source}}. If no clear reference is available, apply capitalization according to the target language's conventions and common usage in local games.\n\nFollow the spacing and punctuation structure of the source text and the existing translations, while respecting the target language's local conventions for half-width and full-width characters. If the source text or existing translations use punctuation or spacing that does not match the target language's usual conventions, treat it as intentional special formatting and preserve it directly instead of adapting it.\n\nPrioritize referring to the source text, and also refer to the existing translations in other languages for the same entry ({{OtherLan}}: {{OhterContent}}) before giving the {{language}} translation.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
+const DEFAULT_AI_PROMPT = "Translate the following source text into {{language}} for a game localization context.\n\nInterpret the source text according to its original in-game meaning and the common terminology used in the source language's game industry. Then translate it into natural, player-facing {{language}} that follows the conventions, wording, and habits of the game industry and players in the target region.\n\nFor alphabetic languages, match the capitalization of {{OtherLan_EN}}: {{OhterContent_EN}}. If no clear reference is available, apply capitalization according to the target language's conventions and common usage in local games.\n\nFollow the spacing and punctuation structure of the source text and the existing translations, while respecting the target language's local conventions for half-width and full-width characters. If the source text or existing translations use punctuation or spacing that does not match the target language's usual conventions, treat it as intentional special formatting and preserve it directly instead of adapting it.\n\nPrioritize referring to the source text, and also refer to the existing translations in other languages for the same entry ({{OtherLan}}: {{OhterContent}}) before giving the {{language}} translation.\n\nReturn only the final translation. Do not add explanations, notes, quotation marks, or alternatives.\n\nSource text:\n{{source}}";
 const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
   { value: "zh", label: "中文" },
   { value: "ja", label: "日本語" },
@@ -75,7 +76,7 @@ const UI_TEXT = {
     search: "搜索 source、译文或 #tag", allEntries: "全部条目", complete: "已完成", incomplete: "未完成", languages: "语言", allLanguages: "全部语言",
     changedOnly: "仅显示已修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
-    aiSuggestion: "AI 建议", generate: "生成", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
+    aiSuggestion: "AI 建议", generate: "生成", cancel: "取消", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     aiEmptyBatch: "将翻译所有空置的译文单元格。已有译文不会被自动覆盖。",
     selectCell: "选择一个译文单元格进行编辑。", completion: "完成度", renameColumns: "重命名列", translated: "已翻译",
     allSaved: "所有更改已保存", notSaved: "未保存", projectNotSaved: "项目未保存", sourceFiles: "个源文件", saveFailed: "保存失败", savedAndVerified: "已写入并校验", changedCells: "个已修改单元格", downloadedCopy: "浏览器无法直接覆盖原文件，已下载更新副本",
@@ -92,7 +93,7 @@ const UI_TEXT = {
     search: "source、翻訳、#tag を検索", allEntries: "すべて", complete: "完了", incomplete: "未完了", languages: "言語", allLanguages: "すべての言語",
     changedOnly: "変更のみ", allTags: "すべて", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "すべて", missingTranslation: "翻訳なし",
     detailEditor: "詳細エディター", noSelection: "未選択", keyContext: "Key / context", translation: "翻訳", enterTranslation: "翻訳を入力…",
-    aiSuggestion: "AI 提案", generate: "生成", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
+    aiSuggestion: "AI 提案", generate: "生成", cancel: "キャンセル", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     aiEmptyBatch: "空の翻訳セルをすべて翻訳します。既存の翻訳は自動上書きされません。",
     selectCell: "翻訳セルを選択してください。", completion: "進捗", renameColumns: "列名を変更", translated: "翻訳済み",
     allSaved: "すべて保存済み", notSaved: "未保存", projectNotSaved: "プロジェクト未保存", sourceFiles: "個のソースファイル", saveFailed: "保存に失敗", savedAndVerified: "書き込みと検証が完了", changedCells: "件の変更セル", downloadedCopy: "ブラウザーから元ファイルを上書きできないため、更新済みコピーをダウンロードしました",
@@ -109,7 +110,7 @@ const UI_TEXT = {
     search: "Search source, translation or #tag", allEntries: "All entries", complete: "Complete", incomplete: "Incomplete", languages: "Languages", allLanguages: "All languages",
     changedOnly: "Changed only", allTags: "All", emptyTag: "Empty", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "All", missingTranslation: "Missing translation",
     detailEditor: "Detail editor", noSelection: "No selection", keyContext: "Key / context", translation: "Translation", enterTranslation: "Enter translation…",
-    aiSuggestion: "AI Suggestion", generate: "Generate", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
+    aiSuggestion: "AI Suggestion", generate: "Generate", cancel: "Cancel", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     aiEmptyBatch: "Will translate all empty translation cells. Existing translations are never overwritten automatically.",
     selectCell: "Select a translation cell to edit it.", completion: "Completion", renameColumns: "Rename columns", translated: "translated",
     allSaved: "All changes saved", notSaved: "not saved", projectNotSaved: "Project not saved", sourceFiles: "source files", saveFailed: "save failed", savedAndVerified: "written and verified", changedCells: "changed cells", downloadedCopy: "The browser cannot overwrite the original file, so an updated copy was downloaded",
@@ -235,6 +236,7 @@ function normalizeDeepLRegion(region: unknown): AiSettings["deeplRegion"] {
 
 function migrateDefaultAiPrompt(prompt: unknown): string | undefined {
   if (prompt === LEGACY_DEFAULT_AI_PROMPT) return DEFAULT_AI_PROMPT;
+  if (prompt === PREVIOUS_DEFAULT_AI_PROMPT) return DEFAULT_AI_PROMPT;
   return typeof prompt === "string" ? prompt : undefined;
 }
 
@@ -425,6 +427,9 @@ export function App() {
   const [aiDraft, setAiDraft] = useState<AiSettings | null>(null);
   const [suggestion, setSuggestion] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [aiBatchStatus, setAiBatchStatus] = useState<{ kind: "idle" | "running" | "stopped"; message: string; logColor?: "orange" | "red" }>({ kind: "idle", message: "" });
+  const batchCancelled = useRef(false);
+  const aiAbortRef = useRef<AbortController | null>(null);
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
   const [csvDraft, setCsvDraft] = useState({ documentId: "", sourceColumn: "", keyColumn: "", languages: "" });
   const [cellDrafts, setCellDrafts] = useState<Record<string, string>>({});
@@ -477,6 +482,9 @@ export function App() {
   }
 
   function describeAiError(error: unknown): Record<string, unknown> {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { aborted: true };
+    }
     if (isProviderHttpError(error)) {
       return { status: error.status, contentType: error.contentType, bodyPreview: error.bodyPreview };
     }
@@ -812,7 +820,7 @@ export function App() {
     event.clipboardData.setData("text/plain", output.join("\n"));
   }
 
-  function handleMatrixPaste(event: React.ClipboardEvent<HTMLInputElement>, cell: MatrixCellSelection) {
+  function handleMatrixPaste(event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>, cell: MatrixCellSelection) {
     const text = event.clipboardData.getData("text/plain");
     if (!text) return;
     const rows = parseClipboardGrid(text);
@@ -1410,14 +1418,17 @@ export function App() {
     });
   }
 
-  async function requestAiTranslation(entry: TranslationEntry, language: string): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
+  async function requestAiTranslation(entry: TranslationEntry, language: string, signal?: AbortSignal): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
     if (ai.provider === "openai-compatible") {
       appendDiagnostic("ai.request.start", { endpoint: ai.endpoint, model: ai.model, language, sourceLength: entry.source.length });
       try {
-        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language) });
+        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language), signal });
         appendDiagnostic("ai.request.success", { endpoint: ai.endpoint, model: ai.model, language, rawLength: result.raw.length, strippedThink: result.strippedThink });
         return { text: result.text, strippedThink: result.strippedThink };
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw error;
+        }
         appendDiagnostic("ai.request.error", { endpoint: ai.endpoint, model: ai.model, language, ...describeAiError(error) });
         throw error;
       }
@@ -1426,10 +1437,13 @@ export function App() {
       const targetLang = toDeepLTargetLanguage(language);
       appendDiagnostic("deepl.request.start", { endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion], region: ai.deeplRegion, targetLang, sourceLength: entry.source.length });
       try {
-        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language });
+        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language, signal });
         appendDiagnostic("deepl.request.success", { targetLang, detectedSource: result.detectedSource, textLength: result.text.length });
         return { text: result.text, detectedSource: result.detectedSource };
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw error;
+        }
         appendDiagnostic("deepl.request.error", { targetLang, ...describeAiError(error) });
         throw error;
       }
@@ -1461,29 +1475,57 @@ export function App() {
     }
     setAiBusy(true);
     setSuggestion("");
+    batchCancelled.current = false;
+    const batchAbortController = new AbortController();
+    aiAbortRef.current = batchAbortController;
+    setAiBatchStatus({ kind: "running", message: `AI translating 0 / ${targets.length}` });
     recordEditHistory();
     try {
       const summary = await runAdaptiveConcurrentBatch({
         items: targets,
         initialConcurrency: 4,
         retryDelayMs: aiRateLimitDelayMs,
+        shouldStop: () => batchCancelled.current,
         worker: async (target) => {
-          const result = await requestAiTranslation(target.entry, target.language);
+          if (batchCancelled.current) return undefined;
+          const result = await requestAiTranslation(target.entry, target.language, batchAbortController.signal);
           const text = result.text.trim();
           return text ? { cell: { key: target.entry.key, column: target.language }, value: text } : undefined;
         },
         onSuccess: (update) => applyMatrixValues([update], { recordHistory: false }),
         onError: (error, target, index) => {
+          if (error instanceof Error && error.name === "AbortError") return;
           appendDiagnostic("ai.batch.item.error", { index, language: target.language, sourceLength: target.entry.source.length, ...describeAiError(error) });
         },
+        onRateLimitThrottled: (error, target, index, delayMs) => {
+          setAiBatchStatus({ kind: "running", message: `Rate limited, retrying after ${Math.round(delayMs / 1000)}s...`, logColor: "orange" });
+        },
+        onAutoStop: (summary) => {
+          setAiBatchStatus({ kind: "stopped", message: "RATE 超限，任务已自动停止", logColor: "red" });
+        },
         onProgress: (completed, total, current) => {
-          setNotice(`AI translating ${completed} / ${total}; written ${current.written}; failed ${current.failed}${current.rateLimited ? "; rate limited, slowing down" : ""}.`);
+          if (!batchCancelled.current) {
+            setAiBatchStatus({
+              kind: "running",
+              message: `AI translating ${completed} / ${total}; written ${current.written}; failed ${current.failed}${current.rateLimited ? "; rate limited, slowing down" : ""}.`,
+              logColor: current.rateLimited ? "orange" : undefined,
+            });
+          }
         },
       });
+      if (summary.autoStopped) {
+        setNotice(`AI batch auto-stopped after ${summary.consecutiveFailures} consecutive failures. Written ${summary.written}; failed ${summary.failed}.`);
+      } else if (batchCancelled.current) {
+        setAiBatchStatus({ kind: "stopped", message: "任务已手动停止", logColor: "red" });
+        setNotice(`AI batch manually stopped. Written ${summary.written}; failed ${summary.failed}.`);
+      } else {
+        setAiBatchStatus({ kind: "idle", message: "" });
+        setNotice(`AI translated ${summary.written}; skipped ${summary.skipped}; failed ${summary.failed}${summary.rateLimited ? "; rate limit handled by retry." : "."}`);
+      }
       appendDiagnostic("ai.batch.summary", { provider: ai.provider, ...summary });
-      setNotice(`AI translated ${summary.written}; skipped ${summary.skipped}; failed ${summary.failed}${summary.rateLimited ? "; rate limit handled by retry." : "."}`);
     } finally {
       setAiBusy(false);
+      aiAbortRef.current = null;
     }
   }
 
@@ -1501,17 +1543,41 @@ export function App() {
       return;
     }
     setAiBusy(true);
+    const controller = new AbortController();
+    aiAbortRef.current = controller;
     try {
-      const result = await requestAiTranslation(current, selection.language);
+      const result = await requestAiTranslation(current, selection.language, controller.signal);
+      if (controller.signal.aborted) return;
       if (!result.text) throw new Error("empty");
       setSuggestion(result.text);
       if (result.strippedThink) appendDiagnostic("ai.stripped_think", { language: selection.language });
       if (result.detectedSource) appendDiagnostic("deepl.detected_source", { detected: result.detectedSource, requested: toDeepLTargetLanguage(selection.language) });
     } catch (error) {
+      if (controller.signal.aborted) {
+        setNotice("AI 生成已取消");
+        return;
+      }
       setNotice(aiErrorNotice(ai.provider, error));
     } finally {
       setAiBusy(false);
+      aiAbortRef.current = null;
     }
+  }
+
+  function cancelAi() {
+    if (!aiBusy) return;
+    aiAbortRef.current?.abort();
+    batchCancelled.current = true;
+    setAiBatchStatus({ kind: "stopped", message: "任务已手动停止", logColor: "red" });
+    setNotice("AI 生成已取消");
+  }
+
+  function handleAiButtonClick() {
+    if (aiBusy) {
+      cancelAi();
+      return;
+    }
+    generateSuggestion();
   }
 
   function applyBatch() {
@@ -1671,10 +1737,10 @@ export function App() {
                   onMouseDown={(event) => {
                     if (event.shiftKey) event.preventDefault();
                     selectMatrixCell({ key: entry.key, column: TAGS_COLUMN }, event.shiftKey);
-                    if (event.shiftKey) requestAnimationFrame(() => event.currentTarget.querySelector("input")?.focus());
+                    if (event.shiftKey) requestAnimationFrame(() => event.currentTarget.querySelector("textarea")?.focus());
                   }}
                 >
-                  <input className="tag-input" value={entry.tags.join(" ")} onChange={(event) => updateTags(entry.key, event.target.value)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: TAGS_COLUMN })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: TAGS_COLUMN })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); commitTags(entry.key, event.currentTarget.value, selectedMatrixCells.length > 1 ? "batch" : "single"); } }} placeholder="#tag" />
+                  <textarea className="tag-input" rows={1} value={entry.tags.join("\n")} onChange={(event) => updateTags(entry.key, event.target.value)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: TAGS_COLUMN })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: TAGS_COLUMN })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); commitTags(entry.key, event.currentTarget.value, selectedMatrixCells.length > 1 ? "batch" : "single"); } }} placeholder="#tag" />
                 </td>
               </tr>
             ))}</tbody>
@@ -1689,17 +1755,17 @@ export function App() {
             <label className="field-label">{t.translation}</label>
             <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} data-translation-draft-key={cellDraftKey(current.key, selection.language)} className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={cellParticipates(current, selection.language, project.view.forceMissingCells) ? t.enterTranslation : t.unavailableCell} />
             <label className="field-label">{t.sourceTags}</label>
-            <input className="text-input" value={current.tags.join(" ")} onChange={(event) => updateTags(current.key, event.target.value)} placeholder="#ui #review" />
+            <textarea className="text-input tag-textarea" rows={2} value={current.tags.join("\n")} onChange={(event) => updateTags(current.key, event.target.value)} placeholder="#ui #review" />
             <label className="field-label">{t.wordTags}</label>
-            <input disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="text-input" value={currentCell?.tags?.join(" ") ?? ""} onChange={(event) => updateWordTags(current.key, selection.language, event.target.value)} placeholder="#review #todo" />
-            <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={generateSuggestion} disabled={aiBusy}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{t.generate}</Button></div>
+            <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} className="text-input tag-textarea" rows={2} value={currentCell?.tags?.join("\n") ?? ""} onChange={(event) => updateWordTags(current.key, selection.language, event.target.value)} placeholder="#review #todo" />
+            <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={handleAiButtonClick} disabled={!aiSettingsReady()}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{aiBusy ? t.cancel : t.generate}</Button></div>
               <small className="ai-usage-hint">{currentAiUsageLabel}</small>
               <p>{suggestion || t.aiEmpty}</p>
               <Button variant="soft" disabled={!suggestion} onClick={() => { updateCell(current.key, selection.language, suggestion); setSuggestion(""); }}><Check size={14} />{t.applySuggestion}</Button>
             </section>
           </> : <div className="empty-detail">
               <p>{t.selectCell}</p>
-              <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={generateSuggestion} disabled={aiBusy}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{t.generate}</Button></div>
+              <section className="ai-panel"><div className="panel-heading"><span><Sparkles size={14} />{t.aiSuggestion}</span><Button onClick={handleAiButtonClick} disabled={!aiSettingsReady()}>{aiBusy ? <RefreshCw className="spin" size={14} /> : <Sparkles size={14} />}{aiBusy ? t.cancel : t.generate}</Button></div>
                 <small className="ai-usage-hint">{currentAiUsageLabel}</small>
                 <p>{t.aiEmptyBatch}</p>
               </section>
@@ -1714,7 +1780,7 @@ export function App() {
           </section>
         </aside>
       </div>
-      <footer className="statusbar"><span><i className={saveStatusClass} />{saveStatusText}</span><span>{notice}</span><span>{project.documents.length} {t.sourceFiles} · v0.1.1</span></footer>
+      <footer className="statusbar"><span><i className={saveStatusClass} />{saveStatusText}</span><span className={aiBatchStatus.logColor ? `batch-log-${aiBatchStatus.logColor}` : ""}>{aiBatchStatus.kind !== "idle" ? aiBatchStatus.message : notice}</span><span>{project.documents.length} {t.sourceFiles} · v0.1.1</span></footer>
 
       <input hidden multiple ref={fileInput} type="file" accept=".po,.pot,.csv" onChange={async (event) => { const files = await Promise.all([...event.target.files ?? []].map(async (file) => ({ name: file.name, path: "", content: await file.text() }))); event.target.value = ""; if (pendingProjectConfig.current) { const config = pendingProjectConfig.current; pendingProjectConfig.current = null; restoreProject(config, files); } else importDocuments(files); }} />
       <input hidden ref={projectInput} type="file" accept=".json" onChange={async (event) => { const [file] = [...event.target.files ?? []]; event.target.value = ""; if (!file) return; try { pendingProjectConfig.current = JSON.parse(await file.text()) as ProjectConfig; setNotice("Project JSON loaded. Select its PO/CSV source files to finish reopening."); fileInput.current?.click(); } catch { setNotice("Could not parse the selected project JSON."); } }} />

@@ -54,6 +54,47 @@ describe("AI prompt template rendering", () => {
     expect(result).toBe("ja Y  ");
   });
 
+  it("renders language-code suffixed OtherLan and OhterContent variables", () => {
+    const result = renderAiPromptTemplate({
+      template: "EN: {{OtherLan_EN}} = {{OhterContent_EN}}, ZH: {{OtherLan_zh-Hans}} = {{OhterContent_zh-Hans}}, Missing: [{{OtherLan_fr}} {{OhterContent_fr}}]",
+      language: "ko",
+      source: "Maze",
+      columnLabels: { en: "English", "zh-Hans": "简体中文" },
+      otherLanguages: [
+        { language: "en", content: "Maze" },
+        { language: "zh-Hans", content: "迷宫" },
+      ],
+    });
+    expect(result).toBe("EN: English = Maze, ZH: 简体中文 = 迷宫, Missing: [ ]");
+  });
+
+  it("renders empty string for language-code suffixed variables when language is not found", () => {
+    const result = renderAiPromptTemplate({
+      template: "{{OtherLan_ja}} {{OhterContent_ja}}",
+      language: "en",
+      source: "X",
+      columnLabels: {},
+      otherLanguages: [
+        { language: "ko", content: "Y" },
+      ],
+    });
+    expect(result).toBe(" ");
+  });
+
+  it("is case-insensitive for language-code suffixed variables", () => {
+    const result = renderAiPromptTemplate({
+      template: "{{OtherLan_EN}} {{OtherLan_en}} {{OhterContent_ZH-HANS}} {{OhterContent_zh-hans}}",
+      language: "ko",
+      source: "Test",
+      columnLabels: { "zh-Hans": "ZH" },
+      otherLanguages: [
+        { language: "en", content: "English" },
+        { language: "zh-Hans", content: "中文" },
+      ],
+    });
+    expect(result).toBe("en en 中文 中文");
+  });
+
   it("renders aggregate OtherLan:OhterContent for paired pattern", () => {
     const result = renderAiPromptTemplate({
       template: "Others: {{OtherLan}}: {{OhterContent}}",

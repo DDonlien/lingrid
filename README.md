@@ -37,8 +37,7 @@ Options               选项          Options         オプション      #revi
 - Two-tier Obsidian-style tags: Source Tags (shared across all languages for a source entry) and Word Tags (bound to a specific language cell, rendered as a colored vertical bar in the top-right corner of the matrix cell).
 - Tag filters (both Source and Word tags) provide `All` and `Empty` options: checking `All` selects all tags and empty items, while `Empty` targets untagged entries/cells.
 - Basic statistics: entry count, completion rates per language, untranslated counts, tag counts, and changed counts.
-- Lightweight AI / Translation API suggestions: configure endpoint, key, model, and prompt to fetch translation suggestions for the active cell.
-- Simple batch find and replace.
+- Lightweight AI / Translation API suggestions: configure endpoint, API key, model, and prompt template to fetch translation suggestions for the active cell or batch-fill empty cells.
 - Excel-like matrix multi-selection, bulk copy-paste, bulk fill, and `Ctrl/Cmd+Z` undo / `Ctrl/Cmd+Shift+Z` redo; Source Tag cells support the same operations.
 - UI supports switching interface language between Chinese, Japanese, and English.
 
