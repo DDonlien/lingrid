@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownUp,
   Bot,
@@ -483,6 +483,149 @@ function cloneEntries(entries: TranslationEntry[]): EntriesSnapshot {
 function FilterMenu({ label, active, children }: { label: string; active?: boolean; children: React.ReactNode }) {
   return <details className="filter-menu"><summary className={`filter-toggle ${active ? "active" : ""}`}><Filter size={14} />{label}</summary><div className="filter-popover">{children}</div></details>;
 }
+
+const MatrixCellInput = memo(forwardRef<HTMLInputElement, {
+  draftKey: string;
+  initialValue: string;
+  disabled: boolean;
+  placeholder: string;
+  onCommit: (value: string) => void;
+  onMove: (direction: "down" | "next" | "previous") => void;
+  onCopy: (event: React.ClipboardEvent<HTMLInputElement>) => void;
+  onPaste: (event: React.ClipboardEvent<HTMLInputElement>) => void;
+  preventSelectAll: boolean;
+}>(function MatrixCellInput({ draftKey, initialValue, disabled, placeholder, onCommit, onMove, onCopy, onPaste, preventSelectAll }, ref) {
+  const [localValue, setLocalValue] = useState(initialValue);
+
+  useEffect(() => {
+    setLocalValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input
+      ref={ref}
+      disabled={disabled}
+      data-translation-draft-key={draftKey}
+      value={localValue}
+      onChange={(event) => setLocalValue(event.target.value)}
+      onBlur={() => onCommit(localValue)}
+      onCopy={onCopy}
+      onPaste={onPaste}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) return;
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && preventSelectAll) {
+          event.preventDefault();
+          return;
+        }
+        if (event.key === "Enter") {
+          event.preventDefault();
+          onCommit(localValue);
+          onMove("down");
+        } else if (event.key === "Tab") {
+          event.preventDefault();
+          onCommit(localValue);
+          onMove(event.shiftKey ? "previous" : "next");
+        }
+      }}
+      placeholder={placeholder}
+    />
+  );
+}));
+
+interface MatrixRowProps {
+  entry: TranslationEntry;
+  languages: string[];
+  forceMissingCells: boolean;
+  selectedKey: string | null;
+  selectedLanguage: string | null;
+  matrixSelectedIds: Set<string>;
+  cellDrafts: Record<string, string>;
+  cellInputs: React.MutableRefObject<Map<string, HTMLInputElement>>;
+  onSelectCell: (key: string, language: string, extend: boolean) => void;
+  onCommitCell: (key: string, language: string, value: string) => void;
+  onMoveFromCell: (key: string, language: string, direction: "down" | "next" | "previous") => void;
+  onCopy: (event: React.ClipboardEvent<HTMLInputElement>, key: string, language: string) => void;
+  onPaste: (event: React.ClipboardEvent<HTMLInputElement>, key: string, language: string) => void;
+  onSelectAll: (key: string, language: string) => boolean;
+  t: Record<string, string>;
+}
+
+const MatrixRow = memo(function MatrixRow({
+  entry,
+  languages,
+  forceMissingCells,
+  selectedKey,
+  selectedLanguage,
+  matrixSelectedIds,
+  cellDrafts,
+  cellInputs,
+  onSelectCell,
+  onCommitCell,
+  onMoveFromCell,
+  onCopy,
+  onPaste,
+  onSelectAll,
+  t,
+}: MatrixRowProps) {
+  return (
+    <tr className={entry.key === selectedKey ? "selected-row" : ""}>
+      <td className="source-col"><strong>{entry.source}</strong>{entry.context ? <small>{entry.context}</small> : null}</td>
+      {languages.map((language) => {
+        const cell = entry.translations[language];
+        const editable = Boolean(cell) || forceMissingCells;
+        const selected = entry.key === selectedKey && language === selectedLanguage;
+        const matrixSelected = matrixSelectedIds.has(matrixCellKey(entry.key, language));
+        const draftKey = cellDraftKey(entry.key, language);
+        return (
+          <td
+            key={language}
+            className={`translation-cell ${!editable ? "unavailable" : ""} ${selected ? "selected-cell" : ""} ${matrixSelected ? "multi-selected-cell" : ""} ${cell?.changed ? "changed" : ""}`}
+            title={!editable ? t.unavailableCell : undefined}
+            onMouseDown={(event) => {
+              if (!editable) return;
+              if (event.shiftKey) event.preventDefault();
+              onSelectCell(entry.key, language, event.shiftKey);
+              if (event.shiftKey) requestAnimationFrame(() => cellInputs.current.get(draftKey)?.focus());
+            }}
+          >
+            {cell?.neverEdited ? <span className="never-edited-marker" title={t.neverEdited} /> : null}
+            {cell?.tags?.length ? <span className="word-tag-markers" title={cell.tags.join(" ")}>{cell.tags.map((tag) => <i key={tag} style={{ backgroundColor: tagColor(tag) }} />)}</span> : null}
+            <MatrixCellInput
+              ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }}
+              draftKey={draftKey}
+              initialValue={cellDrafts[draftKey] ?? cell?.value ?? ""}
+              disabled={!editable}
+              placeholder={editable ? t.missingTranslation : ""}
+              onCommit={(value) => onCommitCell(entry.key, language, value)}
+              onCopy={(event) => onCopy(event, entry.key, language)}
+              onPaste={(event) => onPaste(event, entry.key, language)}
+              onMove={(direction) => onMoveFromCell(entry.key, language, direction)}
+              preventSelectAll={onSelectAll(entry.key, language)}
+            />
+          </td>
+        );
+      })}
+    </tr>
+  );
+}, (prev, next) => {
+  if (prev.entry.key !== next.entry.key) return false;
+  if (prev.entry.source !== next.entry.source) return false;
+  if (prev.entry.context !== next.entry.context) return false;
+  if (prev.entry.tags.join(" ") !== next.entry.tags.join(" ")) return false;
+  for (const lang of next.languages) {
+    const p = prev.entry.translations[lang];
+    const n = next.entry.translations[lang];
+    if (!p || !n) return false;
+    if (p.value !== n.value || p.changed !== n.changed || p.neverEdited !== n.neverEdited) return false;
+    if ((p.tags?.join(" ") ?? "") !== (n.tags?.join(" ") ?? "")) return false;
+  }
+  if (prev.languages.join(",") !== next.languages.join(",")) return false;
+  if (prev.forceMissingCells !== next.forceMissingCells) return false;
+  if (prev.selectedKey !== next.selectedKey) return false;
+  if (prev.selectedLanguage !== next.selectedLanguage) return false;
+  if (prev.matrixSelectedIds !== next.matrixSelectedIds) return false;
+  return true;
+});
 
 export function App() {
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>(() => {
@@ -1107,9 +1250,24 @@ export function App() {
     });
   }
 
+  function commitCellValue(entryKey: string, language: string, value: string, mode: "single" | "batch" = "single") {
+    const committed = project.entries.find((entry) => entry.key === entryKey)?.translations[language]?.value ?? "";
+    if (value !== committed) {
+      const cells = mode === "batch" ? selectedCellsForCommit(entryKey, language) : [{ key: entryKey, column: language }];
+      applyMatrixValue(cells, value);
+    }
+    const key = cellDraftKey(entryKey, language);
+    if (key in cellDrafts) {
+      setCellDrafts((drafts) => {
+        const next = { ...drafts };
+        delete next[key];
+        return next;
+      });
+    }
+  }
+
   function moveFromCell(entryKey: string, language: string, direction: "next" | "previous" | "down") {
     const next = adjacentCell(visible.map((entry) => entry.key), project.columnOrder, { key: entryKey, language }, direction);
-    commitCell(entryKey, language, "batch");
     if (!next) return;
     setSelection(next);
     setActiveMatrixCell({ key: next.key, column: next.language });
@@ -2113,7 +2271,18 @@ export function App() {
                   >
                     {cell?.neverEdited ? <span className="never-edited-marker" title={t.neverEdited} /> : null}
                     {cell?.tags?.length ? <span className="word-tag-markers" title={cell.tags.join(" ")}>{cell.tags.map((tag) => <i key={tag} style={{ backgroundColor: tagColor(tag) }} />)}</span> : null}
-                    <input disabled={!editable} data-translation-draft-key={draftKey} ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell?.value ?? ""} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: language })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: language })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(entry.key, language))) event.preventDefault(); if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={editable ? t.missingTranslation : ""} />
+                    <MatrixCellInput
+                      ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }}
+                      draftKey={draftKey}
+                      initialValue={cellDrafts[draftKey] ?? cell?.value ?? ""}
+                      disabled={!editable}
+                      placeholder={editable ? t.missingTranslation : ""}
+                      onCommit={(value) => commitCellValue(entry.key, language, value, selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(entry.key, language)) ? "batch" : "single")}
+                      onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: language })}
+                      onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: language })}
+                      onMove={(direction) => moveFromCell(entry.key, language, direction)}
+                      preventSelectAll={selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(entry.key, language))}
+                    />
                   </td>;
                 })}
                 <td
