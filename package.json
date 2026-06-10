@@ -11,6 +11,7 @@
     "build:app": "tsc -b ts/tsconfig.json && vite build --config ts/vite.config.ts",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build:site": "node scripts/build-site.js",
+    "dev:site": "npx serve website/ -p 3000",
     "build": "npm run build:app && npm run build:electron",
     "package:electron": "npm run build && electron-builder --dir",
     "dist:electron": "npm run build && electron-builder",

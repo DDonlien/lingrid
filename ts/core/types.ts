@@ -4,6 +4,7 @@ export interface TranslationCell {
   value: string;
   changed: boolean;
   tags?: string[];
+  neverEdited?: boolean;
 }
 
 export interface TranslationEntry {
@@ -40,7 +41,7 @@ export interface ProjectView {
   search: string;
   completion: "all" | "complete" | "incomplete";
   completionLanguages: string[];
-  changedOnly: boolean;
+  editStatus: string[];
   tags: string[];
   wordTags: string[];
   wordTagLanguages: string[];
@@ -63,6 +64,15 @@ export interface LingridProject {
   view: ProjectView;
   projectPath?: string;
   projectFileHandle?: FileSystemFileHandle;
+  directoryHandle?: FileSystemDirectoryHandle;
+}
+
+export interface RecentProject {
+  path: string;
+  name: string;
+  lastAccessed: number;
+  sourceCount: number;
+  languages: string[];
 }
 
 export type AiProvider = "openai-compatible" | "anthropic-compatible" | "deepl";

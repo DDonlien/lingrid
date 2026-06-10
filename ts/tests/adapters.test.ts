@@ -244,7 +244,7 @@ describe("Project state", () => {
     const document = po("zh-CN.po");
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
-    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, columnWidths: { "zh-CN": 240 }, view: { search: "", completion: "all", completionLanguages: [], changedOnly: false, tags: [], wordTags: [], wordTagLanguages: [] } });
+    const output = serializeProject({ version: "0.1", documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: { "zh-CN": "简体中文" }, columnWidths: { "zh-CN": 240 }, view: { search: "", completion: "all", completionLanguages: [], editStatus: ["never-edited", "changed", "unchanged"], tags: [], wordTags: [], wordTagLanguages: [] } });
     expect(output).toContain('"#ui"');
     expect(output).toContain('"zh-CN": 240');
     expect(output).not.toContain("开始游戏");
@@ -253,7 +253,7 @@ describe("Project state", () => {
 
   it("does not persist transient search, filter or force-fill view state", () => {
     const project = createProject();
-    project.view = { search: "menu", completion: "incomplete", completionLanguages: ["zh-CN"], changedOnly: true, tags: ["#ui"], wordTags: ["#todo"], wordTagLanguages: ["zh-CN"], forceMissingCells: true, sort: { language: "zh-CN", mode: "content-asc" } };
+    project.view = { search: "menu", completion: "incomplete", completionLanguages: ["zh-CN"], editStatus: ["never-edited", "changed", "unchanged"], tags: ["#ui"], wordTags: ["#todo"], wordTagLanguages: ["zh-CN"], forceMissingCells: true, sort: { language: "zh-CN", mode: "content-asc" } };
     expect(JSON.parse(serializeProject(project))).not.toHaveProperty("view");
   });
 
@@ -306,7 +306,7 @@ describe("Project state", () => {
     const entries = parsePo(document);
     entries[0].tags = ["#ui"];
     entries[0].translations["zh-CN"].changed = true;
-    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], changedOnly: true, tags: ["#ui"], wordTags: [], wordTagLanguages: [] } };
+    const project = { version: "0.1" as const, documents: [document], entries, columnOrder: ["zh-CN"], columnLabels: {}, columnWidths: {}, view: { search: "#ui", completion: "all" as const, completionLanguages: [], editStatus: ["never-edited", "changed", "unchanged"], tags: ["#ui"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project)).toHaveLength(1);
     expect(projectStats(project)).toEqual({ total: 3, languages: { "zh-CN": { translated: 2, missing: 1, total: 3, completion: 67 } }, tags: { "#ui": 1 }, changed: 1 });
   });
@@ -316,7 +316,7 @@ describe("Project state", () => {
       parsePo(inlinePo("zh-CN", [{ source: "Shared", value: "共享" }, { source: "Missing translation", value: "" }])),
       parsePo(inlinePo("ja", [{ source: "Shared", value: "共有" }, { source: "Missing translation", value: "不足" }, { source: "Only in ja", value: "日本語のみ" }])),
     );
-    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["zh-CN"], changedOnly: false, tags: [], wordTags: [], wordTagLanguages: [] } };
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["zh-CN"], editStatus: ["never-edited", "changed", "unchanged"], tags: [], wordTags: [], wordTagLanguages: [] } };
     expect(projectStats(project).languages["zh-CN"].total).toBe(2);
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Missing translation"]);
     project.view.forceMissingCells = true;
@@ -328,7 +328,7 @@ describe("Project state", () => {
     const entries = mergeEntries(parsePo(po("zh-CN.po")), parsePo(po("ja.po")));
     entries[0].tags = ["#ui"];
     entries[1].tags = ["#review"];
-    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], changedOnly: false, tags: ["#ui", "#review"], wordTags: [], wordTagLanguages: [] } };
+    const project: LingridProject = { version: "0.1", documents: [], entries, columnOrder: ["zh-CN", "ja"], columnLabels: {}, columnWidths: {}, view: { search: "", completion: "incomplete", completionLanguages: ["ja"], editStatus: ["never-edited", "changed", "unchanged"], tags: ["#ui", "#review"], wordTags: [], wordTagLanguages: [] } };
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
     project.view.completionLanguages = ["zh-CN"];
     expect(filteredEntries(project).map((entry) => entry.source)).toEqual(["Continue"]);
@@ -341,7 +341,7 @@ describe("Project state", () => {
       search: "",
       completion: "all",
       completionLanguages: [],
-      changedOnly: false,
+      editStatus: ["never-edited", "changed", "unchanged"],
       tags: ["#ui"],
       wordTags: [],
       wordTagLanguages: [],

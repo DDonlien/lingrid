@@ -4,11 +4,13 @@ import {
   Bot,
   Check,
   ClipboardList,
+  Clock,
   FilePlus2,
   FileText,
   Filter,
   FolderOpen,
   Hash,
+  History,
   Languages,
   RefreshCw,
   Save,
@@ -19,14 +21,15 @@ import {
   CircleCheck,
   CircleDashed,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { defaultCsvMapping, parseCsv, parseCsvRows, updateCsv } from "../adapters/csv";
 import { detectPoLanguage, parsePo, updatePo } from "../adapters/po";
 import { rateLimitRetryDelayMs, renderAiPromptTemplate, runAdaptiveConcurrentBatch } from "../core/ai";
 import { writeBrowserFile } from "../core/browser-files";
-import { adjacentCell, applyTranslationDrafts, canImportSourceTypes, cellParticipates, createProject, EMPTY_TAG_FILTER, filteredEntries, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, reorderColumn, serializeProject, sortedEntries } from "../core/project";
-import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
+import { adjacentCell, addRecentProject, applyTranslationDrafts, canImportSourceTypes, cellParticipates, clearRecentProjects, createProject, EDIT_STATUS_CHANGED, EDIT_STATUS_NEVER_EDITED, EDIT_STATUS_OPTIONS, EDIT_STATUS_UNCHANGED, EMPTY_TAG_FILTER, filteredEntries, loadRecentProjects, mergeEntries, nextSortMode, normalizeProjectView, normalizeTag, pathsReferToSameFile, projectStats, removeRecentProject, reorderColumn, saveRecentProjects, serializeProject, sortedEntries } from "../core/project";
+import type { AiProvider, AiSettings, AiSettingsProfile, LingridProject, RecentProject, SourceDocument, TranslationEntry, TranslationSortMode } from "../core/types";
 import { DEEPL_ENDPOINTS, ProviderHttpError as DeepLProviderHttpError, requestDeepLTranslation, toDeepLTargetLanguage } from "./providers/deepl";
 import { ProviderHttpError as OpenAiProviderHttpError, requestOpenAiCompatibleTranslation } from "./providers/openai-compatible";
 import { ANTHROPIC_COMPATIBLE_PRESETS, OPENAI_COMPATIBLE_PRESETS, providerPreset } from "./providers/presets";
@@ -44,7 +47,8 @@ type ProjectConfig = {
   columnWidths?: Record<string, number>;
   tags?: Record<string, string[]>;
   wordTags?: Record<string, Record<string, string[]>>;
-  view?: Partial<LingridProject["view"]> & { tag?: string };
+  neverEdited?: Record<string, Record<string, boolean>>;
+  view?: Partial<LingridProject["view"]> & { tag?: string; changedOnly?: boolean };
 };
 type BrowserSourceFile = { name: string; path: string; content: string; modifiedAt?: number; fileHandle?: FileSystemFileHandle };
 type SourceSaveStatus = { kind: "idle" } | { kind: "success"; changedCount: number } | { kind: "download"; fileCount: number } | { kind: "error"; message: string };
@@ -74,7 +78,7 @@ const UI_TEXT = {
     open: "打开", importCsv: "导入 CSV", openProject: "打开项目", authorizeFolder: "授权项目文件夹", csvMapping: "CSV 映射",
     save: "保存", saveAs: "另存为", saveProject: "保存项目", saveProjectAs: "项目另存为", batchReplace: "批量替换", aiSettings: "AI 设置",
     search: "搜索 source、译文或 #tag", allEntries: "全部条目", complete: "已完成", incomplete: "未完成", languages: "语言", allLanguages: "全部语言",
-    changedOnly: "仅显示已修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
+    changedOnly: "仅显示已修改", editStatus: "修改状态", neverEdited: "从未修改", changed: "已修改", unchanged: "未修改", allTags: "全部", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "全部", missingTranslation: "缺少译文",
     detailEditor: "详情编辑器", noSelection: "未选择", keyContext: "Key / context", translation: "译文", enterTranslation: "输入译文…",
     aiSuggestion: "AI 建议", generate: "生成", cancel: "取消", applySuggestion: "应用建议", aiEmpty: "为当前单元格生成建议。已有译文不会被自动覆盖。",
     aiEmptyBatch: "将翻译所有空置的译文单元格。已有译文不会被自动覆盖。",
@@ -86,12 +90,13 @@ const UI_TEXT = {
     languageColumns: "语言列，使用逗号分隔", applyMapping: "应用映射", uiLanguage: "界面语言",
     diagnostics: "诊断日志", copyDiagnostics: "复制日志", clearDiagnostics: "清空日志", diagnosticsCopied: "诊断日志已复制",
     forceMissingCells: "强制补齐", unavailableCell: "源文件中不存在此条目",
+    recentProjects: "最近项目", clearRecentProjects: "清除历史", noRecentProjects: "暂无最近项目", openRecentProject: "打开最近项目",
   },
   ja: {
     open: "開く", importCsv: "CSV を読み込む", openProject: "プロジェクトを開く", authorizeFolder: "フォルダーを許可", csvMapping: "CSV マッピング",
     save: "保存", saveAs: "名前を付けて保存", saveProject: "プロジェクトを保存", saveProjectAs: "プロジェクトを別名保存", batchReplace: "一括置換", aiSettings: "AI 設定",
     search: "source、翻訳、#tag を検索", allEntries: "すべて", complete: "完了", incomplete: "未完了", languages: "言語", allLanguages: "すべての言語",
-    changedOnly: "変更のみ", allTags: "すべて", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "すべて", missingTranslation: "翻訳なし",
+    changedOnly: "変更のみ", editStatus: "編集状態", neverEdited: "未編集", changed: "変更あり", unchanged: "変更なし", allTags: "すべて", emptyTag: "空", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "すべて", missingTranslation: "翻訳なし",
     detailEditor: "詳細エディター", noSelection: "未選択", keyContext: "Key / context", translation: "翻訳", enterTranslation: "翻訳を入力…",
     aiSuggestion: "AI 提案", generate: "生成", cancel: "キャンセル", applySuggestion: "提案を適用", aiEmpty: "選択セルの提案を生成します。既存の翻訳は自動上書きされません。",
     aiEmptyBatch: "空の翻訳セルをすべて翻訳します。既存の翻訳は自動上書きされません。",
@@ -103,12 +108,13 @@ const UI_TEXT = {
     languageColumns: "言語列（カンマ区切り）", applyMapping: "マッピングを適用", uiLanguage: "表示言語",
     diagnostics: "診断ログ", copyDiagnostics: "ログをコピー", clearDiagnostics: "ログを消去", diagnosticsCopied: "診断ログをコピーしました",
     forceMissingCells: "不足項目を強制追加", unavailableCell: "ソースファイルにこの項目はありません",
+    recentProjects: "最近のプロジェクト", clearRecentProjects: "履歴を消去", noRecentProjects: "最近のプロジェクトはありません", openRecentProject: "最近のプロジェクトを開く",
   },
   en: {
     open: "Open", importCsv: "Import CSV", openProject: "Open Project", authorizeFolder: "Authorize Project Folder", csvMapping: "CSV Mapping",
     save: "Save", saveAs: "Save As", saveProject: "Save Project", saveProjectAs: "Save Project As", batchReplace: "Batch Replace", aiSettings: "AI Settings",
     search: "Search source, translation or #tag", allEntries: "All entries", complete: "Complete", incomplete: "Incomplete", languages: "Languages", allLanguages: "All languages",
-    changedOnly: "Changed only", allTags: "All", emptyTag: "Empty", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "All", missingTranslation: "Missing translation",
+    changedOnly: "Changed only", editStatus: "Edit status", neverEdited: "Never edited", changed: "Changed", unchanged: "Unchanged", allTags: "All", emptyTag: "Empty", source: "Source", tags: "Tags", sourceTags: "Source Tag", wordTags: "Word Tag", allWordTags: "All", missingTranslation: "Missing translation",
     detailEditor: "Detail editor", noSelection: "No selection", keyContext: "Key / context", translation: "Translation", enterTranslation: "Enter translation…",
     aiSuggestion: "AI Suggestion", generate: "Generate", cancel: "Cancel", applySuggestion: "Apply suggestion", aiEmpty: "Generate a suggestion for the selected cell. Existing translation is never overwritten automatically.",
     aiEmptyBatch: "Will translate all empty translation cells. Existing translations are never overwritten automatically.",
@@ -120,6 +126,7 @@ const UI_TEXT = {
     languageColumns: "Language columns, comma separated", applyMapping: "Apply mapping", uiLanguage: "Interface language",
     diagnostics: "Diagnostic Log", copyDiagnostics: "Copy Log", clearDiagnostics: "Clear Log", diagnosticsCopied: "Diagnostic log copied",
     forceMissingCells: "Force Missing Entries", unavailableCell: "This entry does not exist in the source file",
+    recentProjects: "Recent Projects", clearRecentProjects: "Clear History", noRecentProjects: "No recent projects", openRecentProject: "Open recent project",
   },
 } as const;
 export const AI_DEFAULT: AiSettings = {
@@ -510,8 +517,9 @@ export function App() {
   const [draggedLanguage, setDraggedLanguage] = useState<string | null>(null);
   const [dragOverLanguage, setDragOverLanguage] = useState<string | null>(null);
   const [savedProjectSnapshot, setSavedProjectSnapshot] = useState(() => serializeProject(initialDemoProject));
-  const [pendingBrowserProject, setPendingBrowserProject] = useState<{ config: ProjectConfig; projectFileHandle: FileSystemFileHandle } | null>(null);
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>(() => loadRecentProjects());
+  const [scrollTop, setScrollTop] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const projectInput = useRef<HTMLInputElement>(null);
   const pendingProjectConfig = useRef<ProjectConfig | null>(null);
@@ -519,6 +527,7 @@ export function App() {
   const draggedHeader = useRef(false);
   const resizingColumn = useRef<{ column: string; startX: number; startWidth: number } | null>(null);
   const saveInFlight = useRef<Promise<void> | null>(null);
+  const matrixWrapRef = useRef<HTMLDivElement>(null);
   const deferredSearch = useDeferredValue(project.view.search);
   useEffect(() => {
     localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage);
@@ -546,6 +555,17 @@ export function App() {
     }
     document.addEventListener("pointerdown", closeOpenMenus);
     return () => document.removeEventListener("pointerdown", closeOpenMenus);
+  }, []);
+  useEffect(() => {
+    const container = matrixWrapRef.current;
+    if (!container) return;
+    function onScroll() {
+      const el = matrixWrapRef.current;
+      if (!el) return;
+      setScrollTop(el.scrollTop);
+    }
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
   }, []);
   function appendDiagnostic(event: string, details: Record<string, unknown> = {}) {
     const line = `${new Date().toISOString()} ${event} ${JSON.stringify(details)}`;
@@ -615,6 +635,15 @@ export function App() {
     },
     [project, deferredSearch],
   );
+  const ROW_HEIGHT = 48;
+  const BUFFER_ROWS = 5;
+  const containerHeight = matrixWrapRef.current?.clientHeight ?? 800;
+  const totalHeight = visible.length * ROW_HEIGHT;
+  const visibleStart = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS);
+  const visibleEnd = Math.min(visible.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER_ROWS);
+  const virtualVisible = visible.slice(visibleStart, visibleEnd);
+  const topPadding = visibleStart * ROW_HEIGHT;
+  const bottomPadding = (visible.length - visibleEnd) * ROW_HEIGHT;
   const matrixColumns = useMemo(() => [...project.columnOrder, TAGS_COLUMN], [project.columnOrder]);
   const selectedMatrixCellIds = useMemo(() => new Set(selectedMatrixCells.map((cell) => matrixCellKey(cell.key, cell.column))), [selectedMatrixCells]);
   const current = project.entries.find((entry) => entry.key === selection?.key);
@@ -793,6 +822,7 @@ export function App() {
           }
           if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
           const previous = nextEntry.translations[cell.column];
+          const changed = previous?.changed || value !== (previous?.value ?? "");
           nextEntry = {
             ...nextEntry,
             translations: {
@@ -800,7 +830,8 @@ export function App() {
               [cell.column]: {
                 ...previous,
                 value,
-                changed: previous?.changed || value !== (previous?.value ?? ""),
+                changed,
+                neverEdited: changed ? false : previous?.neverEdited,
               },
             },
           };
@@ -834,6 +865,7 @@ export function App() {
           }
           if (!nextEntry.translations[cell.column] && !state.view.forceMissingCells) continue;
           const previous = nextEntry.translations[cell.column];
+          const changed = previous?.changed || value !== (previous?.value ?? "");
           nextEntry = {
             ...nextEntry,
             translations: {
@@ -841,7 +873,8 @@ export function App() {
               [cell.column]: {
                 ...previous,
                 value,
-                changed: previous?.changed || value !== (previous?.value ?? ""),
+                changed,
+                neverEdited: changed ? false : previous?.neverEdited,
               },
             },
           };
@@ -919,6 +952,9 @@ export function App() {
         setNotice("PO/POT and CSV files cannot be mixed in the same project.");
         return state;
       }
+      const previousCells = new Map(state.entries.flatMap((entry) =>
+        Object.entries(entry.translations).map(([language, cell]) => [`${entry.key}\u0001${language}`, cell.neverEdited]),
+      ));
       for (const file of files) {
         const document = createDocument(file.name, file.path, file.content, file.modifiedAt, file.fileHandle);
         const entries = document.type === "csv" ? parseCsv(document) : parsePo(document);
@@ -937,6 +973,16 @@ export function App() {
           next.columnLabels[language] ??= language;
         }
       }
+      next.entries = next.entries.map((entry) => ({
+        ...entry,
+        translations: Object.fromEntries(
+          Object.entries(entry.translations).map(([language, cell]) => {
+            const key = `${entry.key}\u0001${language}`;
+            const previousNeverEdited = previousCells.get(key);
+            return [language, { ...cell, neverEdited: previousNeverEdited !== undefined ? previousNeverEdited : true }];
+          }),
+        ),
+      }));
       setNotice(`Imported ${next.documents.length} source file${next.documents.length === 1 ? "" : "s"}`);
       return next;
     });
@@ -976,6 +1022,46 @@ export function App() {
       restoreProject(config, files, projectFile.path, undefined, missingPaths);
       return;
     }
+
+    // Browser: prefer directory picker for FILE-B workflow
+    if (window.showDirectoryPicker) {
+      try {
+        const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+        appendDiagnostic("project.open.directory", { name: directoryHandle.name });
+
+        // Look for .lingrid.json in the selected folder
+        let projectFileHandle: FileSystemFileHandle | undefined;
+        try {
+          projectFileHandle = await directoryHandle.getFileHandle(".lingrid.json");
+        } catch {
+          // .lingrid.json does not exist
+        }
+
+        if (projectFileHandle) {
+          const projectFile = await projectFileHandle.getFile();
+          const config = JSON.parse(await projectFile.text()) as ProjectConfig;
+          appendDiagnostic("project.open.json", { name: projectFile.name, bytes: projectFile.size, modifiedAt: projectFile.lastModified, configuredFiles: config.files?.length ?? 0 });
+          const { files, missingPaths } = await readBrowserProjectDirectory(directoryHandle, config);
+          restoreProject(config, files, undefined, projectFileHandle, missingPaths, directoryHandle);
+        } else {
+          // No project file found: import source files as a new project
+          setNotice("No .lingrid.json found. Importing source files from the selected folder.");
+          const { files } = await readBrowserProjectDirectory(directoryHandle, { files: [] });
+          if (files.length) {
+            importDocuments(files);
+            patchProject({ directoryHandle });
+          } else {
+            setNotice("No source files found in the selected folder.");
+          }
+        }
+      } catch (error) {
+        appendDiagnostic("project.open.error", errorDetails(error));
+        if ((error as DOMException).name !== "AbortError") setNotice("Could not open the project folder.");
+      }
+      return;
+    }
+
+    // Fallback: legacy file picker for browsers without directory picker
     if (!window.showOpenFilePicker) {
       projectInput.current?.click();
       return;
@@ -988,18 +1074,12 @@ export function App() {
       const projectFile = await projectFileHandle.getFile();
       const config = JSON.parse(await projectFile.text()) as ProjectConfig;
       appendDiagnostic("project.open.json", { name: projectFile.name, bytes: projectFile.size, modifiedAt: projectFile.lastModified, configuredFiles: config.files?.length ?? 0 });
-      if (window.showDirectoryPicker) {
-        setPendingBrowserProject({ config, projectFileHandle });
-        appendDiagnostic("project.open.awaitingDirectoryAuthorization");
-        setNotice("Project JSON loaded. Authorize its project folder to reopen source files.");
-      } else {
-        const sourceHandles = await window.showOpenFilePicker({
-          multiple: true,
-          types: [{ description: "Lingrid source files", accept: { "text/plain": [".po", ".pot", ".csv"] } }],
-        });
-        const files = await readBrowserSourceFiles(sourceHandles);
-        restoreProject(config, files, undefined, projectFileHandle);
-      }
+      const sourceHandles = await window.showOpenFilePicker({
+        multiple: true,
+        types: [{ description: "Lingrid source files", accept: { "text/plain": [".po", ".pot", ".csv"] } }],
+      });
+      const files = await readBrowserSourceFiles(sourceHandles);
+      restoreProject(config, files, undefined, projectFileHandle);
     } catch (error) {
       appendDiagnostic("project.open.error", errorDetails(error));
       if ((error as DOMException).name !== "AbortError") setNotice("Could not open the project JSON.");
@@ -1103,22 +1183,7 @@ export function App() {
     return <ArrowUpAZ size={13} />;
   }
 
-  async function authorizeProjectDirectory() {
-    if (!pendingBrowserProject || !window.showDirectoryPicker) return;
-    appendDiagnostic("directory.authorization.start", { mode: "readwrite" });
-    try {
-      const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-      appendDiagnostic("directory.authorization.success", { name: directoryHandle.name });
-      const { files, missingPaths } = await readBrowserProjectDirectory(directoryHandle, pendingBrowserProject.config);
-      restoreProject(pendingBrowserProject.config, files, undefined, pendingBrowserProject.projectFileHandle, missingPaths);
-      setPendingBrowserProject(null);
-    } catch (error) {
-      appendDiagnostic("directory.authorization.error", errorDetails(error));
-      if ((error as DOMException).name !== "AbortError") setNotice("Could not read the selected project folder.");
-    }
-  }
-
-  function restoreProject(config: ProjectConfig, files: BrowserSourceFile[], projectPath?: string, projectFileHandle?: FileSystemFileHandle, missingPaths: string[] = []) {
+  function restoreProject(config: ProjectConfig, files: BrowserSourceFile[], projectPath?: string, projectFileHandle?: FileSystemFileHandle, missingPaths: string[] = [], directoryHandle?: FileSystemDirectoryHandle) {
     appendDiagnostic("project.restore.start", { files: files.length, missingPaths, projectPath });
     if (!files.length) {
       setNotice(missingPaths.length ? `Could not open project: ${missingPaths.length} source file${missingPaths.length === 1 ? " is" : "s are"} missing.` : "The project has no readable source files.");
@@ -1143,7 +1208,7 @@ export function App() {
       ...entry,
       translations: Object.fromEntries(Object.entries(entry.translations).map(([language, cell]) => [
         language,
-        { ...cell, tags: config.wordTags?.[entry.key]?.[language] ?? [] },
+        { ...cell, tags: config.wordTags?.[entry.key]?.[language] ?? [], neverEdited: config.neverEdited?.[entry.key]?.[language] ?? false },
       ])),
     }));
     next.columnOrder = config.columnOrder ?? [...new Set(next.entries.flatMap((entry) => Object.keys(entry.translations)))];
@@ -1152,6 +1217,7 @@ export function App() {
     next.view = normalizeProjectView();
     next.projectPath = projectPath;
     next.projectFileHandle = projectFileHandle;
+    next.directoryHandle = directoryHandle;
     setCellDrafts({});
     setUndoStack([]);
     setRedoStack([]);
@@ -1163,6 +1229,9 @@ export function App() {
       ? `Opened ${files.length} source file${files.length === 1 ? "" : "s"}; skipped ${missingPaths.length} missing file${missingPaths.length === 1 ? "" : "s"}.`
       : `Opened project with ${files.length} source files`);
     appendDiagnostic("project.restore.success", { documents: next.documents.length, entries: next.entries.length, languages: next.columnOrder });
+    const updatedRecent = addRecentProject(recentProjects, next, projectPath);
+    setRecentProjects(updatedRecent);
+    saveRecentProjects(updatedRecent);
   }
 
   async function readBrowserSourceFiles(handles: FileSystemFileHandle[]): Promise<BrowserSourceFile[]> {
@@ -1312,21 +1381,39 @@ export function App() {
     const content = serializeProject(project);
     if (window.lingrid) {
       const path = asNew || !project.projectPath
-        ? await window.lingrid.saveAs("lingrid-project.json", content)
+        ? await window.lingrid.saveAs(".lingrid.json", content)
         : (await window.lingrid.writeFile(project.projectPath, content), project.projectPath);
       if (!path) return;
       patchProject({ projectPath: path });
+    } else if (project.directoryHandle) {
+      // FILE-B: save directly to authorized directory
+      try {
+        const projectFileHandle = asNew || !project.projectFileHandle
+          ? await project.directoryHandle.getFileHandle(".lingrid.json", { create: true })
+          : project.projectFileHandle;
+        const writable = await projectFileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        patchProject({ projectFileHandle });
+      } catch (error) {
+        appendDiagnostic("project.save.error", errorDetails(error));
+        setNotice("Failed to save project to folder.");
+        return;
+      }
     } else if (window.showSaveFilePicker) {
       const projectFileHandle = asNew || !project.projectFileHandle
-        ? await window.showSaveFilePicker({ suggestedName: "lingrid-project.json", types: [{ description: "Lingrid project", accept: { "application/json": [".json"] } }] })
+        ? await window.showSaveFilePicker({ suggestedName: ".lingrid.json", types: [{ description: "Lingrid project", accept: { "application/json": [".json"] } }] })
         : project.projectFileHandle;
       const writable = await projectFileHandle.createWritable();
       await writable.write(content);
       await writable.close();
       patchProject({ projectFileHandle });
-    } else download("lingrid-project.json", content);
+    } else download(".lingrid.json", content);
     setSavedProjectSnapshot(content);
     setNotice("Project state saved");
+    const updatedRecent = addRecentProject(recentProjects, project, project.projectPath ?? undefined);
+    setRecentProjects(updatedRecent);
+    saveRecentProjects(updatedRecent);
   }
 
   async function saveCurrentPoAs() {
@@ -1799,7 +1886,8 @@ export function App() {
             Object.entries(entry.translations).map(([language, cell]) => {
               const inScope = batch.scope === "all" || language === selection?.language;
               const value = inScope ? replace(cell.value) : cell.value;
-              return [language, { ...cell, value, changed: cell.changed || value !== cell.value }];
+              const changed = cell.changed || value !== cell.value;
+              return [language, { ...cell, value, changed, neverEdited: changed ? false : cell.neverEdited }];
             }),
           ),
         };
@@ -1817,6 +1905,9 @@ export function App() {
       .filter(([language]) => batch.scope === "all" || language === selection?.language)
       .reduce((sum, [, cell]) => sum + cell.value.split(batch.find).length - 1, 0);
   }, 0);
+  const editStatusLabel = project.view.editStatus?.length === EDIT_STATUS_OPTIONS.length
+    ? t.editStatus
+    : `${t.editStatus} · ${project.view.editStatus?.length ?? 0}`;
   const sourceFormat = sourceFormatLabel(project);
   const completionLabel = project.view.completion === "all"
     ? t.allEntries
@@ -1829,6 +1920,57 @@ export function App() {
   const aiForm = aiDraft ?? ai;
   const aiSettingsDirty = aiDraft ? JSON.stringify(aiDraft) !== JSON.stringify(ai) : false;
   const currentAiUsageLabel = aiUsageLabel(ai);
+
+  async function handleOpenRecent(recent: RecentProject) {
+    if (window.lingrid) {
+      try {
+        const { files: [projectFile], missingPaths: projectMissing } = await window.lingrid.readFiles([recent.path]);
+        if (!projectFile || projectMissing.length) {
+          setNotice(`Could not open recent project: ${recent.name}`);
+          return;
+        }
+        const config = JSON.parse(projectFile.content) as ProjectConfig;
+        const { files, missingPaths } = await window.lingrid.readFiles((config.files ?? []).map((file) => file.path));
+        restoreProject(config, files, recent.path, undefined, missingPaths);
+      } catch (error) {
+        setNotice(`Could not open recent project: ${recent.name}`);
+      }
+      return;
+    }
+    // Browser: cannot persist file handles in localStorage; guide user to re-open manually.
+    setNotice("Please use Open Project to reopen this project in the browser.");
+    openProject();
+  }
+
+  function handleRemoveRecent(event: React.MouseEvent, path: string) {
+    event.stopPropagation();
+    const updated = removeRecentProject(recentProjects, path);
+    setRecentProjects(updated);
+    saveRecentProjects(updated);
+  }
+
+  function handleClearRecent() {
+    clearRecentProjects();
+    setRecentProjects([]);
+  }
+
+  function formatRecentTime(timestamp: number): string {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) {
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      if (diffHours === 0) {
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        return diffMins <= 1 ? "Just now" : `${diffMins}m ago`;
+      }
+      return `${diffHours}h ago`;
+    }
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
 
   function matrixHeaderLabel(language: string): string {
     if (!isDemoProject(project)) return project.columnLabels[language] ?? language;
@@ -1843,7 +1985,39 @@ export function App() {
           <Button onClick={openFiles}><FolderOpen size={15} />{t.open}</Button>
           <Button onClick={openFiles}><FilePlus2 size={15} />{t.importCsv}</Button>
           <Button onClick={openProject}><FileText size={15} />{t.openProject}</Button>
-          {pendingBrowserProject ? <Button variant="soft" onClick={authorizeProjectDirectory}><FolderOpen size={15} />{t.authorizeFolder}</Button> : null}
+          {recentProjects.length > 0 ? (
+            <details className="filter-menu recent-projects-menu">
+              <summary className="filter-toggle"><History size={14} />{t.recentProjects}</summary>
+              <div className="filter-popover recent-projects-popover">
+                {recentProjects.map((recent) => (
+                  <div
+                    key={recent.path}
+                    className="recent-project-item"
+                    onClick={() => { handleOpenRecent(recent); document.querySelector<HTMLDetailsElement>(".recent-projects-menu")?.removeAttribute("open"); }}
+                  >
+                    <div className="recent-project-info">
+                      <span className="recent-project-name">{recent.name}</span>
+                      <span className="recent-project-meta">
+                        <Clock size={11} />{formatRecentTime(recent.lastAccessed)}
+                        {recent.languages.length > 0 ? <> · {recent.languages.length} {t.languages.toLowerCase()}</> : null}
+                      </span>
+                    </div>
+                    <button
+                      className="icon-button recent-project-remove"
+                      title="Remove from history"
+                      onClick={(event) => { handleRemoveRecent(event, recent.path); event.stopPropagation(); }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+                <div className="filter-divider" />
+                <button className="recent-project-clear" onClick={() => { handleClearRecent(); document.querySelector<HTMLDetailsElement>(".recent-projects-menu")?.removeAttribute("open"); }}>
+                  <Trash2 size={12} />{t.clearRecentProjects}
+                </button>
+              </div>
+            </details>
+          ) : null}
           {project.documents.some((document) => document.type === "csv") ? <Button onClick={openCsvMapping}><Languages size={15} />{t.csvMapping}</Button> : null}
           <span className="separator" />
           <Button variant="primary" dirty={sourceDirty} onClick={saveSources}><Save size={15} />{t.save} {sourceFormat}</Button>
@@ -1887,7 +2061,13 @@ export function App() {
           {(["all", "incomplete", "complete"] as const).map((completion) => <label key={completion}><input type="radio" checked={project.view.completion === completion} onChange={() => patchProject({ view: { ...project.view, completion } })} />{completion === "all" ? t.allEntries : completion === "complete" ? t.complete : t.incomplete}</label>)}
           {project.view.completion !== "all" ? <div className="filter-options"><strong>{t.languages}</strong><label><input type="checkbox" checked={!project.view.completionLanguages.length} onChange={() => patchProject({ view: { ...project.view, completionLanguages: [] } })} />{t.allLanguages}</label>{project.columnOrder.map((language) => <label key={language}><input type="checkbox" checked={project.view.completionLanguages.includes(language)} onChange={() => patchProject({ view: { ...project.view, completionLanguages: toggleValue(project.view.completionLanguages, language) } })} />{project.columnLabels[language] ?? language}</label>)}</div> : null}
         </FilterMenu>
-        <button className={`filter-toggle ${project.view.changedOnly ? "active" : ""}`} onClick={() => patchProject({ view: { ...project.view, changedOnly: !project.view.changedOnly } })}><Filter size={14} />{t.changedOnly}</button>
+        <FilterMenu label={editStatusLabel} active={Boolean(project.view.editStatus?.length && project.view.editStatus.length !== EDIT_STATUS_OPTIONS.length)}>
+          <label><input type="checkbox" checked={allValuesSelected(project.view.editStatus ?? [], EDIT_STATUS_OPTIONS)} onChange={(event) => patchProject({ view: { ...project.view, editStatus: event.target.checked ? [...EDIT_STATUS_OPTIONS] : [] } })} />{t.allTags}</label>
+          <div className="filter-divider" />
+          <label><input type="checkbox" checked={project.view.editStatus?.includes(EDIT_STATUS_NEVER_EDITED)} onChange={() => patchProject({ view: { ...project.view, editStatus: toggleValue(project.view.editStatus ?? [], EDIT_STATUS_NEVER_EDITED) } })} />{t.neverEdited}</label>
+          <label><input type="checkbox" checked={project.view.editStatus?.includes(EDIT_STATUS_CHANGED)} onChange={() => patchProject({ view: { ...project.view, editStatus: toggleValue(project.view.editStatus ?? [], EDIT_STATUS_CHANGED) } })} />{t.changed}</label>
+          <label><input type="checkbox" checked={project.view.editStatus?.includes(EDIT_STATUS_UNCHANGED)} onChange={() => patchProject({ view: { ...project.view, editStatus: toggleValue(project.view.editStatus ?? [], EDIT_STATUS_UNCHANGED) } })} />{t.unchanged}</label>
+        </FilterMenu>
         <FilterMenu label={tagFilterLabel} active={Boolean(project.view.tags.length)}>
           <label><input type="checkbox" checked={allValuesSelected(project.view.tags, sourceTagOptions)} onChange={(event) => patchProject({ view: { ...project.view, tags: event.target.checked ? sourceTagOptions : [] } })} />{t.allTags}</label>
           <div className="filter-divider" />
@@ -1905,11 +2085,13 @@ export function App() {
       </section>
 
       <div className="workspace">
-        <section className="matrix-wrap" onMouseDown={clearMatrixSelectionFromNonCell}>
+        <section className="matrix-wrap" ref={matrixWrapRef} onMouseDown={clearMatrixSelectionFromNonCell}>
           <table className="matrix" style={{ width: columnWidth(SOURCE_COLUMN) + project.columnOrder.reduce((sum, language) => sum + columnWidth(language), 0) + columnWidth(TAGS_COLUMN) }}>
             <colgroup><col style={{ width: columnWidth(SOURCE_COLUMN) }} />{project.columnOrder.map((language) => <col key={language} style={{ width: columnWidth(language) }} />)}<col style={{ width: columnWidth(TAGS_COLUMN) }} /></colgroup>
             <thead><tr><th className="source-col">{t.source}{resizeHandle(SOURCE_COLUMN)}</th>{project.columnOrder.map((language) => <th className={dragOverLanguage === language ? "drag-over" : ""} key={language} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverLanguage(language); }} onDragLeave={() => setDragOverLanguage((current) => current === language ? null : current)} onDrop={(event) => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); dropLanguage(language, event.clientX < bounds.left + bounds.width / 2 ? "before" : "after"); }}><button draggable className={`sort-header ${project.view.sort?.language === language ? "active" : ""} ${draggedLanguage === language ? "dragging" : ""}`} title="Click to sort. Drag to reorder columns." onClick={() => { if (!draggedHeader.current) cycleSort(language); }} onDragStart={(event) => { draggedHeader.current = true; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", language); setDraggedLanguage(language); }} onDragEnd={() => { setDraggedLanguage(null); setDragOverLanguage(null); requestAnimationFrame(() => { draggedHeader.current = false; }); }}>{matrixHeaderLabel(language)}{sortIcon(language, project.view.sort?.mode)}</button>{resizeHandle(language)}</th>)}<th>{t.tags}{resizeHandle(TAGS_COLUMN)}</th></tr></thead>
-            <tbody>{visible.map((entry) => (
+            <tbody>
+              {topPadding > 0 ? <tr style={{ height: topPadding }}><td colSpan={2 + project.columnOrder.length} style={{ border: 0, padding: 0 }} /></tr> : null}
+              {virtualVisible.map((entry) => (
               <tr key={entry.key} className={entry.key === selection?.key ? "selected-row" : ""}>
                 <td className="source-col"><strong>{entry.source}</strong>{entry.context ? <small>{entry.context}</small> : null}</td>
                 {project.columnOrder.map((language) => {
@@ -1929,6 +2111,7 @@ export function App() {
                       if (event.shiftKey) requestAnimationFrame(() => cellInputs.current.get(draftKey)?.focus());
                     }}
                   >
+                    {cell?.neverEdited ? <span className="never-edited-marker" title={t.neverEdited} /> : null}
                     {cell?.tags?.length ? <span className="word-tag-markers" title={cell.tags.join(" ")}>{cell.tags.map((tag) => <i key={tag} style={{ backgroundColor: tagColor(tag) }} />)}</span> : null}
                     <input disabled={!editable} data-translation-draft-key={draftKey} ref={(input) => { if (input) cellInputs.current.set(draftKey, input); else cellInputs.current.delete(draftKey); }} value={cellDrafts[draftKey] ?? cell?.value ?? ""} onChange={(event) => draftCell(entry.key, language, event.target.value)} onBlur={() => commitCell(entry.key, language)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: language })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: language })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && selectedMatrixCells.length > 1 && selectedMatrixCellIds.has(matrixCellKey(entry.key, language))) event.preventDefault(); if (event.key === "Enter") { event.preventDefault(); moveFromCell(entry.key, language, "down"); } else if (event.key === "Tab") { event.preventDefault(); moveFromCell(entry.key, language, event.shiftKey ? "previous" : "next"); } }} placeholder={editable ? t.missingTranslation : ""} />
                   </td>;
@@ -1944,7 +2127,9 @@ export function App() {
                   <textarea className="tag-input" rows={1} value={entry.tags.join("\n")} onChange={(event) => updateTags(entry.key, event.target.value)} onCopy={(event) => handleMatrixCopy(event, { key: entry.key, column: TAGS_COLUMN })} onPaste={(event) => handleMatrixPaste(event, { key: entry.key, column: TAGS_COLUMN })} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); commitTags(entry.key, event.currentTarget.value, selectedMatrixCells.length > 1 ? "batch" : "single"); } }} placeholder="#tag" />
                 </td>
               </tr>
-            ))}</tbody>
+            ))}
+              {bottomPadding > 0 ? <tr style={{ height: bottomPadding }}><td colSpan={2 + project.columnOrder.length} style={{ border: 0, padding: 0 }} /></tr> : null}
+            </tbody>
           </table>
         </section>
 
@@ -1953,7 +2138,7 @@ export function App() {
           {current && selection ? <>
             <label className="field-label">{t.source}</label><div className="source-preview">{current.source}</div>
             {current.context ? <><label className="field-label">{t.keyContext}</label><code>{current.context}</code></> : null}
-            <label className="field-label">{t.translation}</label>
+            <label className="field-label">{t.translation}{currentCell?.neverEdited ? <span className="never-edited-badge">{t.neverEdited}</span> : null}</label>
             <textarea disabled={!cellParticipates(current, selection.language, project.view.forceMissingCells)} data-translation-draft-key={cellDraftKey(current.key, selection.language)} className="translation-area" value={cellDrafts[cellDraftKey(current.key, selection.language)] ?? currentCell?.value ?? ""} onChange={(event) => draftCell(current.key, selection.language, event.target.value)} onBlur={() => commitCell(current.key, selection.language)} onKeyDown={(event) => { if (event.nativeEvent.isComposing) return; if (event.key === "Tab") { event.preventDefault(); moveFromCell(current.key, selection.language, event.shiftKey ? "previous" : "next"); } }} placeholder={cellParticipates(current, selection.language, project.view.forceMissingCells) ? t.enterTranslation : t.unavailableCell} />
             <label className="field-label">{t.sourceTags}</label>
             <textarea className="text-input tag-textarea" rows={2} value={current.tags.join("\n")} onChange={(event) => updateTags(current.key, event.target.value)} placeholder="#ui #review" />
