@@ -131,6 +131,7 @@ export const AI_DEFAULT: AiSettings = {
   model: "",
   prompt: DEFAULT_AI_PROMPT,
   deeplRegion: "deepl",
+  selectedProfiles: [],
 };
 
 function aiProviderProfileKey(provider: AiProvider, presetOrRegion: string): string {
@@ -154,6 +155,74 @@ function aiSettingsProfile(ai: AiSettings): AiSettingsProfile {
 
 function hasMeaningfulAiProfileValue(profile: AiSettingsProfile): boolean {
   return Boolean(profile.endpoint || profile.apiKey || profile.model || (profile.prompt && profile.prompt !== AI_DEFAULT.prompt));
+}
+
+function parseAiProfileKey(key: string): { provider: AiProvider; presetOrRegion: string } | null {
+  const parts = key.split(":");
+  if (parts.length !== 2) return null;
+  const provider = parts[0] as AiProvider;
+  if (!["openai-compatible", "anthropic-compatible", "deepl"].includes(provider)) return null;
+  return { provider, presetOrRegion: parts[1] };
+}
+
+function resolveAiProfileSettings(ai: AiSettings, key: string): AiSettings | null {
+  const parsed = parseAiProfileKey(key);
+  if (!parsed) return null;
+  const { provider, presetOrRegion } = parsed;
+  const profile = ai.profiles?.[key];
+  if (provider === "openai-compatible") {
+    const preset = providerPreset(OPENAI_COMPATIBLE_PRESETS, presetOrRegion);
+    const base: AiSettings = {
+      ...ai,
+      provider,
+      openAiPreset: presetOrRegion,
+      endpoint: profile?.endpoint ?? preset.endpoint ?? "",
+      apiKey: profile?.apiKey ?? "",
+      model: profile?.model ?? preset.modelPlaceholder ?? "",
+      prompt: profile?.prompt ?? ai.prompt,
+    };
+    return base;
+  }
+  if (provider === "anthropic-compatible") {
+    const preset = providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, presetOrRegion);
+    return {
+      ...ai,
+      provider,
+      anthropicPreset: presetOrRegion,
+      endpoint: profile?.endpoint ?? preset.endpoint ?? "",
+      apiKey: profile?.apiKey ?? "",
+      model: profile?.model ?? preset.modelPlaceholder ?? "",
+      prompt: profile?.prompt ?? ai.prompt,
+    };
+  }
+  return {
+    ...ai,
+    provider,
+    deeplRegion: presetOrRegion as AiSettings["deeplRegion"],
+    endpoint: profile?.endpoint ?? DEEPL_ENDPOINTS[presetOrRegion as AiSettings["deeplRegion"]] ?? "",
+    apiKey: profile?.apiKey ?? "",
+    model: "",
+    prompt: profile?.prompt ?? ai.prompt,
+  };
+}
+
+function listEnabledAiProfiles(ai: AiSettings): Array<{ key: string; settings: AiSettings }> {
+  const keys = ai.selectedProfiles?.length ? ai.selectedProfiles : [activeAiProfileKey(ai)];
+  const result: Array<{ key: string; settings: AiSettings }> = [];
+  for (const key of keys) {
+    const settings = resolveAiProfileSettings(ai, key);
+    if (settings && aiProfileReady(settings)) {
+      result.push({ key, settings });
+    }
+  }
+  return result;
+}
+
+function aiProfileReady(ai: AiSettings): boolean {
+  if (ai.provider === "anthropic-compatible") return false;
+  if (ai.provider === "openai-compatible" && (!ai.endpoint || !ai.model)) return false;
+  if (ai.provider === "deepl" && !ai.apiKey) return false;
+  return true;
 }
 
 function rememberActiveAiProfile(ai: AiSettings): AiSettings {
@@ -263,6 +332,7 @@ export function loadAiSettings(storage: StorageLike = window.localStorage): AiSe
     merged.deeplRegion = normalizeDeepLRegion(merged.deeplRegion);
     merged.prompt = migrateDefaultAiPrompt(parsed.prompt) ?? AI_DEFAULT.prompt;
     merged.profiles = migrateAiProfiles(parsed.profiles);
+    merged.selectedProfiles = Array.isArray(parsed.selectedProfiles) ? parsed.selectedProfiles : [];
     return merged;
   } catch {
     return AI_DEFAULT;
@@ -430,6 +500,7 @@ export function App() {
   const [aiBatchStatus, setAiBatchStatus] = useState<{ kind: "idle" | "running" | "stopped"; message: string; logColor?: "orange" | "red" }>({ kind: "idle", message: "" });
   const batchCancelled = useRef(false);
   const aiAbortRef = useRef<AbortController | null>(null);
+  const profileAbortRefs = useRef<Map<string, AbortController>>(new Map());
   const [batch, setBatch] = useState({ find: "", replace: "", scope: "current" });
   const [csvDraft, setCsvDraft] = useState({ documentId: "", sourceColumn: "", keyColumn: "", languages: "" });
   const [cellDrafts, setCellDrafts] = useState<Record<string, string>>({});
@@ -1354,6 +1425,24 @@ export function App() {
     setAiDraft((current) => current ? { ...current, ...patch } : current);
   }
 
+  function toggleAiProfileSelection(key: string) {
+    setAiDraft((current) => {
+      if (!current) return current;
+      const selected = new Set(current.selectedProfiles ?? []);
+      if (selected.has(key)) {
+        selected.delete(key);
+      } else {
+        selected.add(key);
+      }
+      return { ...current, selectedProfiles: Array.from(selected) };
+    });
+  }
+
+  function isAiProfileSelected(key: string): boolean {
+    if (!aiDraft) return false;
+    return (aiDraft.selectedProfiles ?? []).includes(key);
+  }
+
   function openAiSettings() {
     setAiDraft(ai);
     setModal("ai");
@@ -1397,20 +1486,17 @@ export function App() {
   }
 
   function aiSettingsReady(): boolean {
-    if (ai.provider === "anthropic-compatible") return false;
-    if (ai.provider === "openai-compatible" && (!ai.endpoint || !ai.model)) return false;
-    if (ai.provider === "deepl" && !ai.apiKey) return false;
-    return true;
+    return listEnabledAiProfiles(ai).length > 0;
   }
 
-  function aiPrompt(entry: TranslationEntry, language: string): string {
+  function aiPrompt(entry: TranslationEntry, language: string, settings: AiSettings = ai): string {
     const others = project.columnOrder
       .filter((lang) => lang !== language)
       .map((lang) => ({ language: lang, content: entry.translations[lang]?.value ?? "" }))
       .filter((item) => item.content.trim() !== "");
 
     return renderAiPromptTemplate({
-      template: ai.prompt,
+      template: settings.prompt,
       language,
       source: entry.source,
       columnLabels: project.columnLabels,
@@ -1418,26 +1504,26 @@ export function App() {
     });
   }
 
-  async function requestAiTranslation(entry: TranslationEntry, language: string, signal?: AbortSignal): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
-    if (ai.provider === "openai-compatible") {
-      appendDiagnostic("ai.request.start", { endpoint: ai.endpoint, model: ai.model, language, sourceLength: entry.source.length });
+  async function requestAiTranslation(entry: TranslationEntry, language: string, signal?: AbortSignal, settings: AiSettings = ai): Promise<{ text: string; strippedThink?: boolean; detectedSource?: string }> {
+    if (settings.provider === "openai-compatible") {
+      appendDiagnostic("ai.request.start", { endpoint: settings.endpoint, model: settings.model, language, sourceLength: entry.source.length });
       try {
-        const result = await requestOpenAiCompatibleTranslation({ endpoint: ai.endpoint, apiKey: ai.apiKey, model: ai.model, prompt: aiPrompt(entry, language), signal });
-        appendDiagnostic("ai.request.success", { endpoint: ai.endpoint, model: ai.model, language, rawLength: result.raw.length, strippedThink: result.strippedThink });
+        const result = await requestOpenAiCompatibleTranslation({ endpoint: settings.endpoint, apiKey: settings.apiKey, model: settings.model, prompt: aiPrompt(entry, language, settings), signal });
+        appendDiagnostic("ai.request.success", { endpoint: settings.endpoint, model: settings.model, language, rawLength: result.raw.length, strippedThink: result.strippedThink });
         return { text: result.text, strippedThink: result.strippedThink };
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           throw error;
         }
-        appendDiagnostic("ai.request.error", { endpoint: ai.endpoint, model: ai.model, language, ...describeAiError(error) });
+        appendDiagnostic("ai.request.error", { endpoint: settings.endpoint, model: settings.model, language, ...describeAiError(error) });
         throw error;
       }
     }
-    if (ai.provider === "deepl") {
+    if (settings.provider === "deepl") {
       const targetLang = toDeepLTargetLanguage(language);
-      appendDiagnostic("deepl.request.start", { endpoint: ai.endpoint || DEEPL_ENDPOINTS[ai.deeplRegion], region: ai.deeplRegion, targetLang, sourceLength: entry.source.length });
+      appendDiagnostic("deepl.request.start", { endpoint: settings.endpoint || DEEPL_ENDPOINTS[settings.deeplRegion], region: settings.deeplRegion, targetLang, sourceLength: entry.source.length });
       try {
-        const result = await requestDeepLTranslation({ endpoint: ai.endpoint, region: ai.deeplRegion, apiKey: ai.apiKey, text: entry.source, targetLang: language, signal });
+        const result = await requestDeepLTranslation({ endpoint: settings.endpoint, region: settings.deeplRegion, apiKey: settings.apiKey, text: entry.source, targetLang: language, signal });
         appendDiagnostic("deepl.request.success", { targetLang, detectedSource: result.detectedSource, textLength: result.text.length });
         return { text: result.text, detectedSource: result.detectedSource };
       } catch (error) {
@@ -1473,6 +1559,11 @@ export function App() {
       setNotice(scope === "selection" ? "No empty editable cells in the selected range." : "No empty editable translation cells.");
       return;
     }
+    const profiles = listEnabledAiProfiles(ai);
+    if (!profiles.length) {
+      openAiSettings();
+      return;
+    }
     setAiBusy(true);
     setSuggestion("");
     batchCancelled.current = false;
@@ -1480,49 +1571,156 @@ export function App() {
     aiAbortRef.current = batchAbortController;
     setAiBatchStatus({ kind: "running", message: `AI translating 0 / ${targets.length}` });
     recordEditHistory();
+
     try {
-      const summary = await runAdaptiveConcurrentBatch({
-        items: targets,
-        initialConcurrency: 4,
-        retryDelayMs: aiRateLimitDelayMs,
-        shouldStop: () => batchCancelled.current,
-        worker: async (target) => {
-          if (batchCancelled.current) return undefined;
-          const result = await requestAiTranslation(target.entry, target.language, batchAbortController.signal);
-          const text = result.text.trim();
-          return text ? { cell: { key: target.entry.key, column: target.language }, value: text } : undefined;
-        },
-        onSuccess: (update) => applyMatrixValues([update], { recordHistory: false }),
-        onError: (error, target, index) => {
-          if (error instanceof Error && error.name === "AbortError") return;
-          appendDiagnostic("ai.batch.item.error", { index, language: target.language, sourceLength: target.entry.source.length, ...describeAiError(error) });
-        },
-        onRateLimitThrottled: (error, target, index, delayMs) => {
-          setAiBatchStatus({ kind: "running", message: `Rate limited, retrying after ${Math.round(delayMs / 1000)}s...`, logColor: "orange" });
-        },
-        onAutoStop: (summary) => {
-          setAiBatchStatus({ kind: "stopped", message: "RATE 超限，任务已自动停止", logColor: "red" });
-        },
-        onProgress: (completed, total, current) => {
-          if (!batchCancelled.current) {
-            setAiBatchStatus({
-              kind: "running",
-              message: `AI translating ${completed} / ${total}; written ${current.written}; failed ${current.failed}${current.rateLimited ? "; rate limited, slowing down" : ""}.`,
-              logColor: current.rateLimited ? "orange" : undefined,
-            });
+      // Group targets by source key
+      const sourceGroups = new Map<string, typeof targets>();
+      for (const target of targets) {
+        const list = sourceGroups.get(target.entry.key) ?? [];
+        list.push(target);
+        sourceGroups.set(target.entry.key, list);
+      }
+      const sourceKeys = Array.from(sourceGroups.keys());
+
+      // Assign source groups to profiles: same source stays on one profile when possible,
+      // but when source count > profile count, round-robin for concurrency.
+      const assignments = new Map<string, typeof targets>();
+      for (const { key } of profiles) {
+        assignments.set(key, []);
+      }
+      if (sourceKeys.length <= profiles.length) {
+        // One source per profile (or fewer)
+        for (let i = 0; i < sourceKeys.length; i++) {
+          const profileKey = profiles[i].key;
+          const list = assignments.get(profileKey) ?? [];
+          list.push(...(sourceGroups.get(sourceKeys[i]) ?? []));
+          assignments.set(profileKey, list);
+        }
+      } else {
+        // Round-robin sources across profiles
+        for (let i = 0; i < sourceKeys.length; i++) {
+          const profileKey = profiles[i % profiles.length].key;
+          const list = assignments.get(profileKey) ?? [];
+          list.push(...(sourceGroups.get(sourceKeys[i]) ?? []));
+          assignments.set(profileKey, list);
+        }
+      }
+
+      // Per-profile abort controllers
+      const profileControllers = new Map<string, AbortController>();
+      for (const { key } of profiles) {
+        profileControllers.set(key, new AbortController());
+      }
+      profileAbortRefs.current = profileControllers;
+
+      // Global counters
+      let totalCompleted = 0;
+      let totalWritten = 0;
+      let totalFailed = 0;
+      let totalSkipped = 0;
+      let rateLimited = false;
+      let autoStopped = false;
+      let consecutiveFailures = 0;
+      const CONSECUTIVE_FAILURE_THRESHOLD = 10;
+
+      // Worker that tries current profile first, then forwards to others on failure
+      const createWorker = (profileKey: string, settings: AiSettings) => {
+        return async (target: typeof targets[number]) => {
+          if (batchCancelled.current || autoStopped) return undefined;
+          const controller = profileControllers.get(profileKey)!;
+
+          const tryTranslate = async (s: AiSettings, ctrl: AbortSignal): Promise<{ cell: { key: string; column: string }; value: string } | undefined> => {
+            const result = await requestAiTranslation(target.entry, target.language, ctrl, s);
+            const text = result.text.trim();
+            return text ? { cell: { key: target.entry.key, column: target.language }, value: text } : undefined;
+          };
+
+          try {
+            return await tryTranslate(settings, controller.signal);
+          } catch (error) {
+            if (error instanceof Error && error.name === "AbortError") throw error;
+
+            // Forward to other profiles on failure (ignore source grouping)
+            for (const other of profiles) {
+              if (other.key === profileKey) continue;
+              if (batchCancelled.current || autoStopped) break;
+              try {
+                const otherCtrl = profileControllers.get(other.key)!;
+                const forwarded = await tryTranslate(other.settings, otherCtrl.signal);
+                if (forwarded) {
+                  appendDiagnostic("ai.batch.item.forwarded", { from: profileKey, to: other.key, sourceLength: target.entry.source.length });
+                  return forwarded;
+                }
+              } catch {
+                // Continue trying next profile
+              }
+            }
+            // All profiles failed
+            throw error;
           }
-        },
+        };
+      };
+
+      // Run each profile's batch concurrently
+      const profileTasks = profiles.map(({ key: profileKey, settings }) => {
+        const profileTargets = assignments.get(profileKey) ?? [];
+        if (!profileTargets.length) {
+          return Promise.resolve({ total: 0, written: 0, skipped: 0, failed: 0, retries: 0, rateLimited: false, autoStopped: false, consecutiveFailures: 0 });
+        }
+        return runAdaptiveConcurrentBatch({
+          items: profileTargets,
+          initialConcurrency: Math.max(1, Math.floor(4 / profiles.length)),
+          retryDelayMs: aiRateLimitDelayMs,
+          shouldStop: () => batchCancelled.current || autoStopped,
+          worker: createWorker(profileKey, settings),
+          onSuccess: (update) => {
+            totalWritten++;
+            applyMatrixValues([update], { recordHistory: false });
+          },
+          onError: (error, target, index) => {
+            if (error instanceof Error && error.name === "AbortError") return;
+            totalFailed++;
+            consecutiveFailures++;
+            appendDiagnostic("ai.batch.item.error", { index, language: target.language, sourceLength: target.entry.source.length, ...describeAiError(error) });
+            if (consecutiveFailures >= CONSECUTIVE_FAILURE_THRESHOLD) {
+              autoStopped = true;
+            }
+          },
+          onRateLimitThrottled: (error, target, index, delayMs) => {
+            rateLimited = true;
+            setAiBatchStatus({ kind: "running", message: `Rate limited, retrying after ${Math.round(delayMs / 1000)}s...`, logColor: "orange" });
+          },
+          onAutoStop: (summary) => {
+            autoStopped = true;
+            setAiBatchStatus({ kind: "stopped", message: "RATE 超限，任务已自动停止", logColor: "red" });
+          },
+          onProgress: (completed, total, current) => {
+            totalCompleted += 1;
+            if (!batchCancelled.current && !autoStopped) {
+              setAiBatchStatus({
+                kind: "running",
+                message: `AI translating ${totalCompleted} / ${targets.length}; written ${totalWritten}; failed ${totalFailed}${rateLimited ? "; rate limited, slowing down" : ""}.`,
+                logColor: rateLimited ? "orange" : undefined,
+              });
+            }
+          },
+        });
       });
-      if (summary.autoStopped) {
-        setNotice(`AI batch auto-stopped after ${summary.consecutiveFailures} consecutive failures. Written ${summary.written}; failed ${summary.failed}.`);
+
+      const summaries = await Promise.all(profileTasks);
+      const anyAutoStopped = summaries.some((s) => s.autoStopped) || autoStopped;
+      const totalRetries = summaries.reduce((sum, s) => sum + s.retries, 0);
+
+      if (anyAutoStopped) {
+        setNotice(`AI batch auto-stopped after ${consecutiveFailures} consecutive failures. Written ${totalWritten}; failed ${totalFailed}.`);
       } else if (batchCancelled.current) {
         setAiBatchStatus({ kind: "stopped", message: "任务已手动停止", logColor: "red" });
-        setNotice(`AI batch manually stopped. Written ${summary.written}; failed ${summary.failed}.`);
+        setNotice(`AI batch manually stopped. Written ${totalWritten}; failed ${totalFailed}.`);
       } else {
         setAiBatchStatus({ kind: "idle", message: "" });
-        setNotice(`AI translated ${summary.written}; skipped ${summary.skipped}; failed ${summary.failed}${summary.rateLimited ? "; rate limit handled by retry." : "."}`);
+        setNotice(`AI translated ${totalWritten}; skipped ${totalSkipped}; failed ${totalFailed}${rateLimited ? "; rate limit handled by retry." : "."}`);
       }
-      appendDiagnostic("ai.batch.summary", { provider: ai.provider, ...summary });
+      appendDiagnostic("ai.batch.summary", { provider: ai.provider, written: totalWritten, skipped: totalSkipped, failed: totalFailed, retries: totalRetries, rateLimited, autoStopped: anyAutoStopped, consecutiveFailures });
     } finally {
       setAiBusy(false);
       aiAbortRef.current = null;
@@ -1567,6 +1765,9 @@ export function App() {
   function cancelAi() {
     if (!aiBusy) return;
     aiAbortRef.current?.abort();
+    for (const controller of profileAbortRefs.current.values()) {
+      controller.abort();
+    }
     batchCancelled.current = true;
     setAiBatchStatus({ kind: "stopped", message: "任务已手动停止", logColor: "red" });
     setNotice("AI 生成已取消");
@@ -1812,11 +2013,18 @@ export function App() {
           {aiForm.provider === "openai-compatible" ? <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
               <legend>{t.providerPreset}</legend>
-              {OPENAI_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${aiForm.openAiPreset === preset.id ? "active" : ""}${preset.warning ? " warning" : ""}`}>
-                <input type="radio" name="openai-preset" value={preset.id} checked={aiForm.openAiPreset === preset.id} onChange={() => selectOpenAiPreset(preset.id)} />
-                <i className="ai-option-dot" aria-hidden="true" />
-                <span className="ai-option-text"><b>{preset.label}</b><small>{preset.warning ?? preset.description}</small></span>
-              </label>)}
+              {OPENAI_COMPATIBLE_PRESETS.map((preset) => {
+                const profileKey = aiProviderProfileKey("openai-compatible", preset.id);
+                const selected = isAiProfileSelected(profileKey);
+                return <label key={preset.id} className={`${aiForm.openAiPreset === preset.id ? "active" : ""}${selected ? " selected" : ""}${preset.warning ? " warning" : ""}`}>
+                  <input type="radio" name="openai-preset" value={preset.id} checked={aiForm.openAiPreset === preset.id} onChange={() => selectOpenAiPreset(preset.id)} />
+                  <i className="ai-option-dot" aria-hidden="true" />
+                  <span className="ai-option-text"><b>{preset.label}</b><small>{preset.warning ?? preset.description}</small></span>
+                  <span className="ai-profile-check" onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleAiProfileSelection(profileKey); }} title={selected ? "取消选中" : "选中用于批量翻译"}>
+                    {selected ? <Check size={14} /> : <span className="ai-profile-uncheck" />}
+                  </span>
+                </label>;
+              })}
             </fieldset>
             <label>{t.apiEndpoint}<input value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder="https://api.example.com/v1/chat/completions" /></label>
             <label>{t.model}<input value={aiForm.model} onChange={(event) => updateAiDraft({ model: event.target.value })} placeholder="model-name" /></label>
@@ -1825,11 +2033,18 @@ export function App() {
           </div> : aiForm.provider === "anthropic-compatible" ? <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-preset-grid ai-field-full">
               <legend>{t.providerPreset}</legend>
-              {ANTHROPIC_COMPATIBLE_PRESETS.map((preset) => <label key={preset.id} className={`${aiForm.anthropicPreset === preset.id ? "active" : ""} disabled-option`}>
-                <input type="radio" name="anthropic-preset" value={preset.id} checked={aiForm.anthropicPreset === preset.id} onChange={() => selectAnthropicPreset(preset.id)} />
-                <i className="ai-option-dot" aria-hidden="true" />
-                <span className="ai-option-text"><b>{preset.label} · {t.disabledProvider}</b><small>{preset.description}</small></span>
-              </label>)}
+              {ANTHROPIC_COMPATIBLE_PRESETS.map((preset) => {
+                const profileKey = aiProviderProfileKey("anthropic-compatible", preset.id);
+                const selected = isAiProfileSelected(profileKey);
+                return <label key={preset.id} className={`${aiForm.anthropicPreset === preset.id ? "active" : ""}${selected ? " selected" : ""} disabled-option`}>
+                  <input type="radio" name="anthropic-preset" value={preset.id} checked={aiForm.anthropicPreset === preset.id} onChange={() => selectAnthropicPreset(preset.id)} />
+                  <i className="ai-option-dot" aria-hidden="true" />
+                  <span className="ai-option-text"><b>{preset.label} · {t.disabledProvider}</b><small>{preset.description}</small></span>
+                  <span className="ai-profile-check" onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleAiProfileSelection(profileKey); }} title={selected ? "取消选中" : "选中用于批量翻译"}>
+                    {selected ? <Check size={14} /> : <span className="ai-profile-uncheck" />}
+                  </span>
+                </label>;
+              })}
             </fieldset>
             <label>{t.apiEndpoint}<input disabled value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, aiForm.anthropicPreset).endpoint} /></label>
             <label>{t.model}<input disabled value={aiForm.model} onChange={(event) => updateAiDraft({ model: event.target.value })} placeholder={providerPreset(ANTHROPIC_COMPATIBLE_PRESETS, aiForm.anthropicPreset).modelPlaceholder} /></label>
@@ -1838,8 +2053,18 @@ export function App() {
           </div> : <div className="ai-form-grid">
             <fieldset className="provider-switch ai-segmented ai-field-full">
               <legend>{t.deeplRegion}</legend>
-              <label className={aiForm.deeplRegion === "deepl" ? "active" : ""}><input type="radio" name="deepl-region" value="deepl" checked={aiForm.deeplRegion === "deepl"} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: "deepl" }) : current)} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplFree}</b><small>{DEEPL_ENDPOINTS.deepl}</small></span></label>
-              <label className={aiForm.deeplRegion === "deeplx" ? "active" : ""}><input type="radio" name="deepl-region" value="deeplx" checked={aiForm.deeplRegion === "deeplx"} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: "deeplx" }) : current)} /><i className="ai-option-dot" aria-hidden="true" /><span className="ai-option-text"><b>{t.deeplPro}</b><small>{DEEPL_ENDPOINTS.deeplx}</small></span></label>
+              {(["deepl", "deeplx"] as const).map((region) => {
+                const profileKey = aiProviderProfileKey("deepl", region);
+                const selected = isAiProfileSelected(profileKey);
+                return <label key={region} className={`${aiForm.deeplRegion === region ? "active" : ""}${selected ? " selected" : ""}`}>
+                  <input type="radio" name="deepl-region" value={region} checked={aiForm.deeplRegion === region} onChange={() => setAiDraft((current) => current ? switchAiSettingsProfile(current, { provider: "deepl", deeplRegion: region }) : current)} />
+                  <i className="ai-option-dot" aria-hidden="true" />
+                  <span className="ai-option-text"><b>{region === "deepl" ? t.deeplFree : t.deeplPro}</b><small>{DEEPL_ENDPOINTS[region]}</small></span>
+                  <span className="ai-profile-check" onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleAiProfileSelection(profileKey); }} title={selected ? "取消选中" : "选中用于批量翻译"}>
+                    {selected ? <Check size={14} /> : <span className="ai-profile-uncheck" />}
+                  </span>
+                </label>;
+              })}
             </fieldset>
             <label>{t.apiEndpoint}<input value={aiForm.endpoint} onChange={(event) => updateAiDraft({ endpoint: event.target.value })} placeholder={DEEPL_ENDPOINTS[aiForm.deeplRegion]} /></label>
             <label>{t.apiKey}<input type="password" value={aiForm.apiKey} onChange={(event) => updateAiDraft({ apiKey: event.target.value })} onCopy={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); }} onCut={(event) => { event.clipboardData.setData("text/plain", aiForm.apiKey); event.preventDefault(); updateAiDraft({ apiKey: "" }); }} placeholder="DeepL-Auth-Key xxxx-xxxx-xxxx-xxxx" /></label>

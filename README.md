@@ -18,7 +18,7 @@ Options               选项          Options         オプション      #revi
 - **One-sentence description**: A lightweight and modern PO / CSV multilingual matrix editor.
 - **Problem Solved**: Traditional PO editors are usually single-file and single-language oriented. Lingrid prioritizes game and software localization workflows where one source text corresponds to multiple language translations, requiring side-by-side viewing and editing.
 - **Target Audience**: Indie game developers, small software teams, localization managers, freelance translators, and anyone managing multilingual PO/CSV files.
-- **Current Status**: Phase 1 (v0.1) runnable prototype. Core editor features, lightweight AI suggestions, batch find/replace, and Electron packaging scripts for desktop build are ready.
+- **Current Status**: Phase 1 (v0.1) runnable prototype. Core editor features, lightweight AI suggestions, batch find/replace, and Electron packaging scripts for desktop build are ready. Phase 1.5 (in progress) adds batch AI tag generation, multi-model concurrency, and large-project performance optimizations.
 
 ## Phase 1 (v0.1) Capabilities
 
@@ -37,9 +37,9 @@ Options               选项          Options         オプション      #revi
 - Two-tier Obsidian-style tags: Source Tags (shared across all languages for a source entry) and Word Tags (bound to a specific language cell, rendered as a colored vertical bar in the top-right corner of the matrix cell).
 - Tag filters (both Source and Word tags) provide `All` and `Empty` options: checking `All` selects all tags and empty items, while `Empty` targets untagged entries/cells.
 - Basic statistics: entry count, completion rates per language, untranslated counts, tag counts, and changed counts.
-- Lightweight AI / Translation API suggestions: configure endpoint, API key, model, and prompt template to fetch translation suggestions for the active cell or batch-fill empty cells.
-- Excel-like matrix multi-selection, bulk copy-paste, bulk fill, and `Ctrl/Cmd+Z` undo / `Ctrl/Cmd+Shift+Z` redo; Source Tag cells support the same operations.
-- UI supports switching interface language between Chinese, Japanese, and English.
+- AI translation suggestions with multi-provider support (OpenAI-compatible, DeepL, DeepLX). Supports single-cell suggestion and batch fill for empty cells, with throttled concurrent requests and automatic retry on rate limits.
+- AI prompt template supports contextual variables: `{{source}}`, `{{language}}`, and cross-language references (`{{OtherLan}}` / `{{OhterContent}}`) to leverage already-translated sibling languages.
+- Simple batch find and replace.
 
 ## File Processing Boundaries
 
@@ -105,6 +105,34 @@ The following features are NOT planned for Phase 1 (v0.1):
     ├── main/
     └── preload/
 ```
+
+## AI Prompt Template Variables
+
+When configuring AI translation suggestions, the prompt template supports the following variables that are dynamically replaced per target cell:
+
+| Variable | Description |
+|----------|-------------|
+| `{{source}}` | The source text of the current row. |
+| `{{language}}` | The display name or internal ID of the target language column being translated. |
+| `{{OtherLan}}` | Auto-aggregated list of other languages already translated for the same source entry, formatted as `LANG: content` pairs separated by commas. Excludes the current target language and empty cells. |
+| `{{OhterContent}}` | The corresponding content values paired with `{{OtherLan}}`. Used together to reference sibling translations. |
+| `{{OtherLan_1}}` / `{{OhterContent_1}}` | Indexed reference to the N-th available sibling language (1-based). Useful when you want to reference a specific other language in order. |
+| `{{OtherLan_<lang>}}` / `{{OhterContent_<lang>}}` | Language-code keyed reference, e.g. `{{OtherLan_en}}` or `{{OtherLan_zh-Hans}}`. Case-insensitive match against language IDs. Returns empty string if not found. |
+
+**Example default prompt excerpt:**
+
+```text
+You are a game localization expert. Translate the following source text into {{language}}.
+
+Source: {{source}}
+
+Reference translations from other languages:
+{{OtherLan}}: {{OhterContent}}
+
+Provide only the translated text, preserving punctuation style and casing conventions.
+```
+
+These variables work for single-cell suggestions, multi-selection batch translation, and empty-cell batch fill.
 
 ## Getting Started
 

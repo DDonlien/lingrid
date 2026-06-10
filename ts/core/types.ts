@@ -84,4 +84,5 @@ export interface AiSettings {
   prompt: string;
   deeplRegion: "deepl" | "deeplx";
   profiles?: Record<string, AiSettingsProfile>;
+  selectedProfiles?: string[];
 }

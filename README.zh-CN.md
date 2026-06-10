@@ -18,7 +18,7 @@ Options               选项          Options         オプション      #revi
 - 一句话简介：轻量现代的 PO / CSV 多语言矩阵编辑器。
 - 解决的问题：传统 PO 编辑器通常以单文件、单语言为主；Lingrid 优先解决游戏和软件本地化中“一个源文本对应多语言译文，需要并排查看和编辑”的问题。
 - 目标用户：独立游戏开发者、小型软件团队、本地化负责人、外包翻译协作者、需要管理多语言 PO/CSV 文件的人。
-- 当前状态：Phase 1（v0.1）可运行原型。已完成 P0 编辑器、P1 轻量 AI 建议与批量替换，并补齐 P2 Electron 桌面封装命令。
+- 当前状态：Phase 1（v0.1）可运行原型。核心编辑器、轻量 AI 建议、批量查找替换、Electron 桌面封装命令均已就绪。Phase 1.5 正在进行中，计划加入批量 AI Tag 生成、多模型并发、大工程性能优化等。
 
 ## Phase 1（v0.1）目标能力
 
@@ -37,7 +37,8 @@ Options               选项          Options         オプション      #revi
 - 支持两层 Obsidian 风格 tag：Source Tag 由同一 source 的所有语言共享；Word Tag 绑定具体语言单元格，并在矩阵格右上角显示稳定颜色的竖条标记。
 - Source Tag 与 Word Tag 筛选均提供 `全部` 和 `空`：勾选 `全部` 会同步选中所有具体 tag 与无标签项，`空` 用于定位没有标签的条目或单元格。
 - 支持简单统计：条目数、各语言完成率、未翻译数量、tag 数量、changed 数量。
-- 支持简单 AI / 翻译 API 建议：配置 endpoint、key、model、prompt 后，对当前单元格请求翻译建议。
+- AI 翻译建议支持多接口（OpenAI 兼容、DeepL、DeepLX），支持单条建议和批量填充空单元格，带限流并发与 RATE 超限自动重试/停止。
+- AI prompt template 支持上下文变量：`{{source}}`、`{{language}}`，以及同源其他语言参考变量（`{{OtherLan}}` / `{{OhterContent}}`），可借助已翻译的兄弟语言提升译文质量。
 - 支持简单批量查找与替换。
 - 支持类似 Excel 的矩阵多选、批量复制粘贴、批量填写，以及 `Ctrl/Cmd+Z` 撤销 and `Ctrl/Cmd+Shift+Z` 重做；Source Tag 单元格也支持同等操作。
 - 应用界面支持中文、日文和英文切换。
@@ -106,6 +107,34 @@ Phase 1（v0.1）暂不做：
     ├── main/
     └── preload/
 ```
+
+## AI Prompt 模板变量
+
+配置 AI 翻译建议时，prompt template 支持以下变量，系统会在每次请求时按当前目标单元格动态替换：
+
+| 变量 | 说明 |
+|------|------|
+| `{{source}}` | 当前行的 source 原文。 |
+| `{{language}}` | 当前目标语言列的显示名或内部语言 ID。 |
+| `{{OtherLan}}` | 自动聚合同一 source entry 下已翻译的其他语言，格式为 `语言: 内容` 对，逗号分隔。排除当前目标语言和空译文单元格。 |
+| `{{OhterContent}}` | 与 `{{OtherLan}}` 对应的内容值，配合使用以引用兄弟语言译文。 |
+| `{{OtherLan_1}}` / `{{OhterContent_1}}` | 索引语法，指向排序后第 N 个可用兄弟语言（从 1 开始）。适合在 prompt 中精确引用某个其他语言。 |
+| `{{OtherLan_<lang>}}` / `{{OhterContent_<lang>}}` | 语言代码后缀语法，如 `{{OtherLan_en}}`、`{{OtherLan_zh-Hans}}`。大小写不敏感匹配语言 ID，未匹配时返回空字符串。 |
+
+**默认 prompt 示例片段：**
+
+```text
+你是一名游戏本地化专家。请将以下 source 文本翻译为 {{language}}。
+
+Source: {{source}}
+
+参考其他语言的已有翻译：
+{{OtherLan}}: {{OhterContent}}
+
+只输出翻译后的文本，保留原文的标点风格和大小写规范。
+```
+
+以上变量在单条建议、多选批量翻译和空单元格批量填充场景下均生效。
 
 ## 快速开始
 
